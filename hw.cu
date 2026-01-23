@@ -23,4 +23,5 @@ int main() {
   int gridSize = 1;
   int blockSize = 64;
   kernel<<<gridSize, blockSize>>>();
+  cudaDeviceSynchronize();
 }
