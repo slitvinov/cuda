@@ -8,7 +8,7 @@ __device__ __forceinline__ unsigned int lane_id() {
 
 __global__ void kernel() {
   unsigned int lane = lane_id();
-  printf("Hello from GPU: threadIdx.x=%d lane=%u\n",
+  printf("threadIdx.x=%d lane=%u\n",
          threadIdx.x, lane);
 }
 
@@ -17,5 +17,4 @@ int main() {
   int blockSize = 64;
   kernel<<<gridSize, blockSize>>>();
   cudaDeviceSynchronize();
-  printf("Hello World from CPU!\n");
 }
