@@ -14,7 +14,7 @@ __global__ void kernel() {
 
 int main() {
   int gridSize = 1;
-  int blockSize = 10;
+  int blockSize = 64;
   kernel<<<gridSize, blockSize>>>();
   cudaDeviceSynchronize();
   printf("Hello World from CPU!\n");
