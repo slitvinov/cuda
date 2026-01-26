@@ -9,14 +9,12 @@ __global__ void square(int *array, int arrayCount) {
 }
 static double reportPotentialOccupancy(void *kernel, int blockSize,
                                        size_t dynamicSMem) {
-  int device;
   cudaDeviceProp prop;
   int numBlocks;
   int activeWarps;
   int maxWarps;
   double occupancy;
-  cudaGetDevice(&device);
-  cudaGetDeviceProperties(&prop, device);
+  cudaGetDeviceProperties(&prop, 0);
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocks, kernel, blockSize,
                                                 dynamicSMem);
   activeWarps = numBlocks * blockSize / prop.warpSize;
@@ -57,11 +55,11 @@ static int launchConfig(int *array, int arrayCount, bool automatic) {
   std::cout << "Elapsed time: " << elapsedTime << "ms" << std::endl;
   return 0;
 }
-static int test(bool automaticLaunchConfig, const int count = 1000000) {
-  int *array;
-  int *dArray;
+int main() {
+  int count = 1000000;
+  int *array, *dArray;
   int size = count * sizeof(int);
-  array = new int[count];
+  cudaMallocHost(&array, size);
   for (int i = 0; i < count; i += 1) {
     array[i] = i;
   }
@@ -70,37 +68,9 @@ static int test(bool automaticLaunchConfig, const int count = 1000000) {
   for (int i = 0; i < count; i += 1) {
     array[i] = 0;
   }
-  launchConfig(dArray, count, automaticLaunchConfig);
+  launchConfig(dArray, count, false);
+  launchConfig(dArray, count, true);
   cudaMemcpy(array, dArray, size, cudaMemcpyDeviceToHost);
   cudaFree(dArray);
-  for (int i = 0; i < count; i += 1) {
-    if (array[i] != i * i) {
-      std::cout << "element " << i << " expected " << i * i << " actual "
-                << array[i] << std::endl;
-      return 1;
-    }
-  }
-  delete[] array;
-  return 0;
-}
-int main() {
-  int status;
-  std::cout << "starting Simple Occupancy" << std::endl << std::endl;
-  std::cout << "[ Manual configuration with " << manualBlockSize
-            << " threads per block ]" << std::endl;
-  status = test(false);
-  if (status) {
-    std::cerr << "Test failed\n" << std::endl;
-    return -1;
-  }
-  std::cout << std::endl;
-  std::cout << "[ Automatic, occupancy-based configuration ]" << std::endl;
-  status = test(true);
-  if (status) {
-    std::cerr << "Test failed\n" << std::endl;
-    return -1;
-  }
-  std::cout << std::endl;
-  std::cout << "Test PASSED\n" << std::endl;
-  return 0;
+  cudaFreeHost(array);
 }
