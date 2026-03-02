@@ -1,20 +1,28 @@
-#include <stdio.h>
-
-#include <stdio.h>
 #include <cuda_runtime.h>
+#include <nvml.h>
+#include <stdio.h>
 
 int main() {
-    cudaDeviceProp prop;
-    char uuid[40];
-    cudaGetDeviceProperties(&prop, 0);
-    printf("Device Name: %s\n", prop.name);
-    printf("PCI Bus ID: %02x:%02x.%x\n",
-           prop.pciBusID,
-           prop.pciDeviceID,
-           prop.pciDomainID);
-    cudaDeviceGetUuid((cudaUUID_t*)uuid, device);
-    printf("GPU UUID: ");
-    for (int i = 0; i < 16; i++)
-        printf("%02x", ((unsigned char*)uuid)[i]);
-    printf("\n");
+  cudaDeviceProp prop;
+  int count, device;
+  cudaUUID_t u;
+  if (cudaGetDeviceCount(&count) != cudaSuccess) {
+    fprintf(stderr, "cudaGetDeviceCount failed\n");
+    return 1;
+  }
+  for (device = 0; device < count; device++) {
+    cudaGetDeviceProperties(&prop, device);
+    u = prop.uuid;
+    printf("id.cu: %s (UUID: "
+           "GPU-%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%"
+           "02x%02x%02x)\n",
+           prop.name, (unsigned char)u.bytes[0], (unsigned char)u.bytes[1],
+           (unsigned char)u.bytes[2], (unsigned char)u.bytes[3],
+           (unsigned char)u.bytes[4], (unsigned char)u.bytes[5],
+           (unsigned char)u.bytes[6], (unsigned char)u.bytes[7],
+           (unsigned char)u.bytes[8], (unsigned char)u.bytes[9],
+           (unsigned char)u.bytes[10], (unsigned char)u.bytes[11],
+           (unsigned char)u.bytes[12], (unsigned char)u.bytes[13],
+           (unsigned char)u.bytes[14], (unsigned char)u.bytes[15]);
+  }
 }
