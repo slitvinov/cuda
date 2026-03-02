@@ -1,5 +1,4 @@
 #include <cuda_runtime.h>
-#include <nvml.h>
 #include <stdio.h>
 
 int main() {
