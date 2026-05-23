@@ -72,15 +72,15 @@ __global__ void forward_kernel(const float   *inputs,   // [G, gi, N]
                                float         *state,    // [G, gi+gn, N]
                                float         *out)      // [G, go, N]
 {
-    const int g          = blockIdx.x;
-    const int tid        = threadIdx.x;
-    const int B          = blockDim.x;
-    const int state_base = g * (gi + gn) * N;
+    const int    g          = blockIdx.x;
+    const int    tid        = threadIdx.x;
+    const int    B          = blockDim.x;
+    const size_t state_base = (size_t)g * (gi + gn) * N;
 
     /* 1. Stage inputs into the first gi rows of state. */
     for (int i = 0; i < gi; ++i) {
-        const int dst = state_base   + i * N;
-        const int src = g * gi * N   + i * N;
+        const size_t dst = state_base + (size_t)i * N;
+        const size_t src = (size_t)g * gi * N + (size_t)i * N;
         for (int k = tid; k < N; k += B) state[dst + k] = inputs[src + k];
     }
     __syncthreads();
@@ -90,14 +90,14 @@ __global__ void forward_kernel(const float   *inputs,   // [G, gi, N]
           node reads two earlier rows of state and writes its own row.
     */
     for (int j = 0; j < gn; ++j) {
-        const int     row  = g * ng_total + (gi + j);
+        const size_t  row  = (size_t)g * ng_total + (gi + j);
         const uint8_t op   = genome[row * 3 + 0];
         const uint8_t ptr0 = genome[row * 3 + 1];
         const uint8_t ptr1 = genome[row * 3 + 2];
 
-        const int in0_base = state_base + ptr0 * N;
-        const int in1_base = state_base + ptr1 * N;
-        const int dst_base = state_base + (gi + j) * N;
+        const size_t in0_base = state_base + (size_t)ptr0 * N;
+        const size_t in1_base = state_base + (size_t)ptr1 * N;
+        const size_t dst_base = state_base + (size_t)(gi + j) * N;
 
         for (int k = tid; k < N; k += B) {
             float v0 = state[in0_base + k];
@@ -112,10 +112,10 @@ __global__ void forward_kernel(const float   *inputs,   // [G, gi, N]
           row to copy into out[g, o, :].
     */
     for (int o = 0; o < go; ++o) {
-        const int     out_row = g * ng_total + (gi + gn + o);
+        const size_t  out_row = (size_t)g * ng_total + (gi + gn + o);
         const uint8_t src_row = genome[out_row * 3 + 1];
-        const int     src     = state_base + src_row * N;
-        const int     dst     = (g * go + o) * N;
+        const size_t  src     = state_base + (size_t)src_row * N;
+        const size_t  dst     = (size_t)(g * go + o) * N;
         for (int k = tid; k < N; k += B) out[dst + k] = state[src + k];
     }
 }
