@@ -1,10 +1,5 @@
 /*
-   gp.cu — Cartesian Genetic Programming, GPU forward pass.
-
-   One self-contained file.  Build:
-       nvcc -arch=sm_80 -O2 gp.cu -o gp
-   Run:
-       ./gp
+   Cartesian Genetic Programming, GPU forward pass.
 
    What this demonstrates:
      - The CGP genome layout (G individuals × ng_total rows × 3 bytes/row).
@@ -13,11 +8,11 @@
      - The "state" activation buffer that holds every node's value at
        every sample point.
 
-   Four hand-crafted individuals all evaluate the same N=16 inputs in
-   [-1, 1].  We then print each individual's prediction next to the
-   target sin(x)+x*x and report MSE.  One individual is the correct
-   model; the others are wrong in different ways.  There is no
-   mutation, no selection, no fitness loop here — only the forward pass.
+   Four hand-crafted individuals all evaluate the same inputs over
+   [-1, 1].  We print each individual's prediction next to the target
+   sin(x)+x*x and report MSE.  One individual is the correct model;
+   the others are wrong in different ways.  No mutation, no selection,
+   no fitness loop — only the forward pass.
 */
 
 #include <cuda_runtime.h>
