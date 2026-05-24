@@ -99,6 +99,7 @@ def main():
     for g in range(G):
         mse = float(np.mean((outs[g] - target) ** 2))
         print(f"  {names[g]:<25}  {mse:.6e}")
+    breakpoint()
 
 
 if __name__ == "__main__":
