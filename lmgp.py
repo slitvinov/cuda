@@ -3,18 +3,18 @@ Levenberg-Marquardt CGP fitting for one individual.
 
 Per step:
   1. forward + J at current params              (out, J)
-  2. r = out - target,   fnorm = ‖r‖
-  3. solve (JᵀJ + λI) δ = Jᵀr;  also Js = J·δ, fnorm_lin = ‖r - Js‖
-  4. params_trial = params - δ
-  5. forward at trial → r_trial, fnorm_trial
+  2. r = out - target,   fnorm = ||r||
+  3. solve (JTJ + lambdaI) delta = JTr;  also Js = J*delta, fnorm_lin = ||r - Js||
+  4. params_trial = params - delta
+  5. forward at trial -> r_trial, fnorm_trial
   6. trust region:
-       ratio = (‖r‖² - ‖r_trial‖²) / (‖r‖² - ‖r_lin‖²)
+       ratio = (||r||^2 - ||r_trial||^2) / (||r||^2 - ||r_lin||^2)
        accept iff ratio > 1e-4
-       ratio > 0.75 → λ *= 0.5
-       ratio < 0.25 → λ *= 2.0
-  7. if accept: commit trial → params, r, fnorm
+       ratio > 0.75 -> lambda *= 0.5
+       ratio < 0.25 -> lambda *= 2.0
+  7. if accept: commit trial -> params, r, fnorm
 
-Each individual carries its own λ that adapts independently.
+Each individual carries its own lambda that adapts independently.
 """
 
 import numpy as np
@@ -26,9 +26,9 @@ from jgp import (
 
 def cholesky_solve_with_js(J, r, lam):
     """
-    Solves (JᵀJ + λI) δ = Jᵀr, and also returns
-      Js        = J · δ                   [m]
-      fnorm_lin = ‖r - Js‖
+    Solves (JTJ + lambdaI) delta = JTr, and also returns
+      Js        = J * delta                   [m]
+      fnorm_lin = ||r - Js||
     """
     m, n = J.shape
     Jd = J.astype(np.float64)
@@ -138,7 +138,7 @@ def main():
         rs[g] = (out - targets[g]).reshape(m).astype(np.float32)
         fnorm[g] = float(np.sqrt(np.sum(rs[g] ** 2)))
 
-    print(f"\nLevenberg-Marquardt iteration  (initial λ = {lam0:.0e}):\n")
+    print(f"\nLevenberg-Marquardt iteration  (initial lambda = {lam0:.0e}):\n")
     print("iter   i0 loss        i1 loss        i2 loss        i3 loss      acc")
 
     def print_losses(it, accepted):
@@ -167,7 +167,7 @@ def main():
             out_trial = forward_value(params_trial, inputs, genomes[g], gi, gn, go)
             r_trial = (out_trial - targets[g]).reshape(m).astype(np.float32)
             fnorm_trial = float(np.sqrt(np.sum(r_trial ** 2)))
-            # Trust region decides λ and accept.
+            # Trust region decides lambda and accept.
             new_lam, acc = trust_region_update(fnorm[g], fnorm_trial,
                                                 fnorm_lin, float(lam[g]))
             lam[g] = new_lam
@@ -179,10 +179,10 @@ def main():
         print_losses(it, accepted)
 
     print("\nFinal parameters vs optimal (all targets are at a = b = 1):")
-    print(f"  i0:  a = {params[0,0]:+9.6f}  (target 1.0)    b = {params[0,2]:+9.6f}  (target 1.0)    λ = {lam[0]:.2e}")
-    print(f"  i1:  a = {params[1,0]:+9.6f}  (target 1.0)                                  λ = {lam[1]:.2e}")
-    print(f"  i2:  a = {params[2,0]:+9.6f}  (target 1.0)                                  λ = {lam[2]:.2e}")
-    print(f"  i3:  b = {params[3,0]:+9.6f}  (target 1.0)    a = {params[3,2]:+9.6f}  (target 1.0)    λ = {lam[3]:.2e}")
+    print(f"  i0:  a = {params[0,0]:+9.6f}  (target 1.0)    b = {params[0,2]:+9.6f}  (target 1.0)    lambda = {lam[0]:.2e}")
+    print(f"  i1:  a = {params[1,0]:+9.6f}  (target 1.0)                                  lambda = {lam[1]:.2e}")
+    print(f"  i2:  a = {params[2,0]:+9.6f}  (target 1.0)                                  lambda = {lam[2]:.2e}")
+    print(f"  i3:  b = {params[3,0]:+9.6f}  (target 1.0)    a = {params[3,2]:+9.6f}  (target 1.0)    lambda = {lam[3]:.2e}")
 
 
 if __name__ == "__main__":

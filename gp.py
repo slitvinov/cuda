@@ -64,13 +64,13 @@ def main():
 
     genomes = [np.zeros((ng_total, 3), dtype=np.uint8) for _ in range(G)]
 
-    # i0: y = sin(x) + x²
+    # i0: y = sin(x) + x^2
     set_node(genomes[0], 1, OP_MUL, 0, 0)
     set_node(genomes[0], 2, OP_SIN, 0)
     set_node(genomes[0], 3, OP_ADD, 1, 2)
     set_node(genomes[0], 7, 0, 3)
 
-    # i1: y = x²
+    # i1: y = x^2
     set_node(genomes[1], 1, OP_MUL, 0, 0)
     set_node(genomes[1], 7, 0, 1)
 

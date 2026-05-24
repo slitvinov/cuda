@@ -1,5 +1,5 @@
 /*
-   bench_gp.cu — scaling sweep for forward_kernel.
+   bench_gp.cu -- scaling sweep for forward_kernel.
 
    Sweeps over (G, gn, N) on one GPU and reports kernel-only time,
    effective DRAM bandwidth, and individuals/second.

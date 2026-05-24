@@ -2,12 +2,12 @@
 Gauss-Newton CGP fitting for one individual.
 
   for it = 0 .. max_iter - 1:
-      forward + Jacobian   →  out, J
+      forward + Jacobian   ->  out, J
       r = out - target
-      solve (JᵀJ + λI) δ = Jᵀr
-      params -= δ
+      solve (JTJ + lambdaI) delta = JTr
+      params -= delta
 
-No trust region; every step is taken blindly with a fixed λ.
+No trust region; every step is taken blindly with a fixed lambda.
 """
 
 import numpy as np
@@ -21,8 +21,8 @@ def cholesky_solve(J, r, lam):
     """
     J: float32 [m, n_p]
     r: float32 [m]
-    Solves (JᵀJ + λI) δ = Jᵀr using Cholesky + triangular solves.
-    Returns δ as float64 [n_p].
+    Solves (JTJ + lambdaI) delta = JTr using Cholesky + triangular solves.
+    Returns delta as float64 [n_p].
     """
     m, n = J.shape
     Jd = J.astype(np.float64)
@@ -101,7 +101,7 @@ def main():
     params[2, 0] = 0.7
     params[3, 0] = 1.5; params[3, 2] = 2.0
 
-    print(f"\nGauss-Newton iteration (fixed λ = {lam:.0e}):\n")
+    print(f"\nGauss-Newton iteration (fixed lambda = {lam:.0e}):\n")
     print("iter   i0 loss        i1 loss        i2 loss        i3 loss")
 
     for it in range(max_iter + 1):

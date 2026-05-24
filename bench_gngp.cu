@@ -204,7 +204,7 @@ __global__ void cholesky_solve_kernel(const float *J,
     }
 }
 
-/* params_trial = params - δ.  Writes to a separate trial buffer so
+/* params_trial = params - delta.  Writes to a separate trial buffer so
    params stays fixed across timed reps. */
 __global__ void apply_step_kernel(const float  *params,
                                   const double *delta,

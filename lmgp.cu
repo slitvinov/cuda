@@ -5,20 +5,20 @@
    Per individual, per step:
 
        1. forward + J at current params           (out, J)
-       2. r = out - target,   fnorm = ‖r‖
-       3. solve  (JᵀJ + λI) δ = Jᵀr     (Cholesky, fp64)
-          also compute  Js = J·δ  and  fnorm_lin = ‖r - Js‖
-       4. params_trial = params - δ
-       5. forward at trial → out_trial, r_trial, fnorm_trial
+       2. r = out - target,   fnorm = ||r||
+       3. solve  (JTJ + lambdaI) delta = JTr     (Cholesky, fp64)
+          also compute  Js = J*delta  and  fnorm_lin = ||r - Js||
+       4. params_trial = params - delta
+       5. forward at trial -> out_trial, r_trial, fnorm_trial
        6. trust region:
-            ratio = (‖r‖² - ‖r_trial‖²) / (‖r‖² - ‖r_lin‖²)
+            ratio = (||r||^2 - ||r_trial||^2) / (||r||^2 - ||r_lin||^2)
             accept iff ratio > 1e-4
-            ratio > 0.75 → λ *= 0.5   (step worked great; trust more)
-            ratio < 0.25 → λ *= 2.0   (step was poor; trust less)
+            ratio > 0.75 -> lambda *= 0.5   (step worked great; trust more)
+            ratio < 0.25 -> lambda *= 2.0   (step was poor; trust less)
        7. if accept: params = params_trial,  r = r_trial,  fnorm = fnorm_trial
-          else:      keep old values; λ has been bumped up
+          else:      keep old values; lambda has been bumped up
 
-   Each individual carries its own λ that adapts independently.
+   Each individual carries its own lambda that adapts independently.
 */
 
 #include <cuda_runtime.h>
@@ -165,7 +165,7 @@ __global__ void residual_kernel(const float *out, const float *target,
 }
 
 /*
-   Value-only forward (used at the trial point — we don't need the
+   Value-only forward (used at the trial point -- we don't need the
    Jacobian there).  Pass 1 of the forward+J kernel, no pass 2.
 */
 __global__ void forward_value_kernel(const float   *params,
@@ -216,7 +216,7 @@ __global__ void forward_value_kernel(const float   *params,
     }
 }
 
-/* ‖v‖₂ per individual.  Serial (one thread per individual). */
+/* ||v||_2 per individual.  Serial (one thread per individual). */
 __global__ void norm_kernel(const float *v, float *out_norm, int mr) {
     const int g = blockIdx.x * blockDim.x + threadIdx.x;
     if (g >= G) return;
@@ -228,7 +228,7 @@ __global__ void norm_kernel(const float *v, float *out_norm, int mr) {
     out_norm[g] = (float)sqrt(s);
 }
 
-/* params_trial = params - δ. */
+/* params_trial = params - delta. */
 __global__ void apply_step_kernel(const float  *params,
                                   const double *delta,
                                   float        *params_trial,
@@ -244,10 +244,10 @@ __global__ void apply_step_kernel(const float  *params,
 }
 
 /*
-   LM step kernel — Cholesky solve plus the linearized residual norm.
-     - per-individual λ from lam[G]
-     - produces δ from (JᵀJ + λI)δ = Jᵀr
-     - also produces Js = J·δ and fnorm_lin = ‖r - Js‖, used by the
+   LM step kernel -- Cholesky solve plus the linearized residual norm.
+     - per-individual lambda from lam[G]
+     - produces delta from (JTJ + lambdaI)delta = JTr
+     - also produces Js = J*delta and fnorm_lin = ||r - Js||, used by the
        trust-region kernel to compare predicted vs actual reduction
 */
 __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
@@ -271,7 +271,7 @@ __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
     const size_t Jb  = (size_t)g * mr * n;
     const size_t rb  = (size_t)g * mr;
 
-    /* H = JᵀJ + λI  (parallel). */
+    /* H = JTJ + lambdaI  (parallel). */
     for (int idx = tid; idx < n * n; idx += B) {
         int i = idx / n, j = idx % n;
         double v = 0.0;
@@ -282,7 +282,7 @@ __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
         if (i == j) v += (double)lam[g];
         H[i * n + j] = v;
     }
-    /* g = Jᵀr  (parallel). */
+    /* g = JTr  (parallel). */
     for (int i = tid; i < n; i += B) {
         double v = 0.0;
         for (int k = 0; k < mr; ++k) {
@@ -315,7 +315,7 @@ __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
     }
     __syncthreads();
 
-    /* Js = J · δ  (parallel, used by the trust-region predicted-reduction). */
+    /* Js = J * delta  (parallel, used by the trust-region predicted-reduction). */
     for (int k = tid; k < mr; k += B) {
         double v = 0.0;
         for (int i = 0; i < n; ++i) {
@@ -325,7 +325,7 @@ __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
     }
     __syncthreads();
 
-    /* fnorm_lin = ‖r - Js‖   (serial, n_lin entries is tiny). */
+    /* fnorm_lin = ||r - Js||   (serial, n_lin entries is tiny). */
     if (tid == 0) {
         double ss = 0.0;
         for (int k = 0; k < mr; ++k) {
@@ -337,7 +337,7 @@ __global__ void lm_step_kernel(const float *J,        // [G, m, n_p]
 }
 
 /*
-   Trust region: compare actual vs predicted reduction in ‖r‖², adapt λ,
+   Trust region: compare actual vs predicted reduction in ||r||^2, adapt lambda,
    set the accept flag.  One thread per individual.
 */
 __global__ void trust_region_kernel(const float *fnorm,
@@ -366,7 +366,7 @@ __global__ void trust_region_kernel(const float *fnorm,
 
 /*
    Commit the trial step iff accepted.  Rejected individuals keep
-   their old params and r; their λ has already been bumped up by
+   their old params and r; their lambda has already been bumped up by
    trust_region_kernel for the next attempt.
 */
 __global__ void accept_kernel(const float *params_trial, float *params,
@@ -483,7 +483,7 @@ int main(void) {
     const float  lam0       = 1e-3f;
     const size_t smem_bytes = (size_t)(2 * n_p * n_p + 3 * n_p) * sizeof(double);
 
-    /* Initial λ — same for all individuals. */
+    /* Initial lambda -- same for all individuals. */
     float h_lam[G]; for (int g = 0; g < G; ++g) h_lam[g] = lam0;
     cudaMemcpy(d_lam, h_lam, sizeof(h_lam), cudaMemcpyHostToDevice);
 
@@ -493,7 +493,7 @@ int main(void) {
     residual_kernel<<<G, 32>>>(d_out_v, d_targets, d_r, m);
     norm_kernel<<<(G + 31) / 32, 32>>>(d_r, d_fnorm, m);
 
-    printf("\nLevenberg-Marquardt iteration  (initial λ = %.0e):\n\n", lam0);
+    printf("\nLevenberg-Marquardt iteration  (initial lambda = %.0e):\n\n", lam0);
     printf("iter   i0 loss        i1 loss        i2 loss        i3 loss      acc\n");
 
     float h_fnorm[G];
@@ -545,13 +545,13 @@ int main(void) {
     cudaMemcpy(h_lam,    d_lam,    sizeof(h_lam),    cudaMemcpyDeviceToHost);
 
     printf("\nFinal parameters vs optimal (all targets are at a = b = 1):\n");
-    printf("  i0:  a = %+9.6f  (target 1.0)    b = %+9.6f  (target 1.0)    λ = %.2e\n",
+    printf("  i0:  a = %+9.6f  (target 1.0)    b = %+9.6f  (target 1.0)    lambda = %.2e\n",
            h_params[0 * n_p + 0], h_params[0 * n_p + 2], h_lam[0]);
-    printf("  i1:  a = %+9.6f  (target 1.0)                                  λ = %.2e\n",
+    printf("  i1:  a = %+9.6f  (target 1.0)                                  lambda = %.2e\n",
            h_params[1 * n_p + 0], h_lam[1]);
-    printf("  i2:  a = %+9.6f  (target 1.0)                                  λ = %.2e\n",
+    printf("  i2:  a = %+9.6f  (target 1.0)                                  lambda = %.2e\n",
            h_params[2 * n_p + 0], h_lam[2]);
-    printf("  i3:  b = %+9.6f  (target 1.0)    a = %+9.6f  (target 1.0)    λ = %.2e\n",
+    printf("  i3:  b = %+9.6f  (target 1.0)    a = %+9.6f  (target 1.0)    lambda = %.2e\n",
            h_params[3 * n_p + 0], h_params[3 * n_p + 2], h_lam[3]);
 
     cudaFree(d_params);       cudaFree(d_params_trial); cudaFree(d_inputs);

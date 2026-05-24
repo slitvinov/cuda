@@ -135,7 +135,7 @@ __global__ void forward_jac_kernel(const float   *params,
     }
 }
 
-/* Builds H = JᵀJ + λI, synthetic g = Jᵀ·1, Cholesky factor, forward
+/* Builds H = JTJ + lambdaI, synthetic g = JT*1, Cholesky factor, forward
    and back solves.  No verification pass. */
 __global__ void cholesky_solve_kernel(const float *J,
                                       double      *delta,

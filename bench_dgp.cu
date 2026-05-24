@@ -1,5 +1,5 @@
 /*
-   bench_dgp.cu — scaling sweep for the AD-augmented forward kernel.
+   bench_dgp.cu -- scaling sweep for the AD-augmented forward kernel.
 
    Same (G, gn, N) grid as bench_gp.cu so the numbers are directly
    comparable: each individual now propagates BOTH value and tangent,
@@ -199,7 +199,7 @@ int main(void) {
         int gn = gns[gni];
         int N  = Ns[ni];
 
-        /* Two state buffers + two out buffers ≈ 2× the HBM footprint. */
+        /* Two state buffers + two out buffers ~ 2x the HBM footprint. */
         size_t state_bytes = 2 * (size_t)G * (gi + gn) * N * sizeof(float);
         if (state_bytes > (size_t)40 * (1ULL << 30)) {
             printf("%7d %5d %5d   %9s   2*state=%.1f GB\n",

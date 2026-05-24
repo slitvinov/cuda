@@ -1,5 +1,5 @@
 /*
-   bench_jgp.cu — scaling sweep for the parameterized-Jacobian kernel.
+   bench_jgp.cu -- scaling sweep for the parameterized-Jacobian kernel.
 
    Same (G, gn, N) grid as bench_gp.cu and bench_dgp.cu so numbers are
    directly comparable.  Forward-mode Jacobian: one value pass followed
@@ -251,11 +251,11 @@ int main(void) {
         int gn = gns[gni];
         int N  = Ns[ni];
 
-        /* state_v + state_t + J  ≈ 3·G·gn·N·4 bytes once you ignore the
+        /* state_v + state_t + J  ~ 3*G*gn*N*4 bytes once you ignore the
            inputs/out fluff.  Skip configs that wouldn't fit on 80 GB. */
         size_t big_bytes = 3 * (size_t)G * (gi + gn) * N * sizeof(float);
         if (big_bytes > (size_t)40 * (1ULL << 30)) {
-            printf("%7d %5d %5d   %10s   3·state≈%.1f GB\n",
+            printf("%7d %5d %5d   %10s   3*state~%.1f GB\n",
                    G, gn, N, "(skipped)", big_bytes / 1e9);
             continue;
         }

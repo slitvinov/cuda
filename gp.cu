@@ -2,7 +2,7 @@
    Cartesian Genetic Programming, GPU forward pass.
 
    What this demonstrates:
-     - The CGP genome layout (G individuals × ng_total rows × 3 bytes/row).
+     - The CGP genome layout (G individuals x ng_total rows x 3 bytes/row).
      - The forward-evaluation kernel: one block per individual, threads
        cooperate on the N sample points.
      - The "state" activation buffer that holds every node's value at
@@ -12,7 +12,7 @@
    [-1, 1].  We print each individual's prediction next to the target
    sin(x)+x*x and report MSE.  One individual is the correct model;
    the others are wrong in different ways.  No mutation, no selection,
-   no fitness loop — only the forward pass.
+   no fitness loop -- only the forward pass.
 */
 
 #include <cuda_runtime.h>
@@ -48,7 +48,7 @@ __device__ __forceinline__ float apply_op(uint8_t op, float v0, float v1) {
 }
 
 /*
-   Forward kernel — one block per individual, blockDim.x threads stride
+   Forward kernel -- one block per individual, blockDim.x threads stride
    over N.
 
    Genome layout (uint8, shape [G, ng_total, 3]):
@@ -148,25 +148,25 @@ int main(void) {
     uint8_t h_genome[G * ng_total * 3] = {};
 
     /*
-       Individual 0 — the true model: y = sin(x) + x*x.
+       Individual 0 -- the true model: y = sin(x) + x*x.
        Nodes 3..5 (rows 4..6) are inactive: still evaluated, but their
        outputs are never referenced.  This is normal in CGP.
     */
-    set_node(h_genome, 0, 1, 2, 0, 0);   // node 0: mul → x*x        in row 1
-    set_node(h_genome, 0, 2, 4, 0, 0);   // node 1: sin → sin(x)     in row 2
-    set_node(h_genome, 0, 3, 0, 1, 2);   // node 2: add → x*x+sin(x) in row 3
-    set_node(h_genome, 0, 7, 0, 3, 0);   // output ← row 3
+    set_node(h_genome, 0, 1, 2, 0, 0);   // node 0: mul -> x*x        in row 1
+    set_node(h_genome, 0, 2, 4, 0, 0);   // node 1: sin -> sin(x)     in row 2
+    set_node(h_genome, 0, 3, 0, 1, 2);   // node 2: add -> x*x+sin(x) in row 3
+    set_node(h_genome, 0, 7, 0, 3, 0);   // output <- row 3
 
-    /* Individual 1 — wrong, predicts just x*x. */
+    /* Individual 1 -- wrong, predicts just x*x. */
     set_node(h_genome, 1, 1, 2, 0, 0);
-    set_node(h_genome, 1, 7, 0, 1, 0);   // output ← row 1
+    set_node(h_genome, 1, 7, 0, 1, 0);   // output <- row 1
 
-    /* Individual 2 — wrong, predicts just sin(x). */
+    /* Individual 2 -- wrong, predicts just sin(x). */
     set_node(h_genome, 2, 1, 4, 0, 0);
-    set_node(h_genome, 2, 7, 0, 1, 0);   // output ← row 1
+    set_node(h_genome, 2, 7, 0, 1, 0);   // output <- row 1
 
-    /* Individual 3 — very wrong, predicts x itself. */
-    set_node(h_genome, 3, 7, 0, 0, 0);   // output ← row 0 (the input)
+    /* Individual 3 -- very wrong, predicts x itself. */
+    set_node(h_genome, 3, 7, 0, 0, 0);   // output <- row 0 (the input)
 
     /* GPU side. */
     float   *d_inputs, *d_state, *d_out;

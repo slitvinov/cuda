@@ -4,11 +4,11 @@
        for it = 0 .. max_iter - 1:
            1. forward + Jacobian   (out, J)  at current params
            2. r = out - target
-           3. solve  (JᵀJ + λI) δ = Jᵀr        (Cholesky, fp64)
-           4. params -= δ
+           3. solve  (JTJ + lambdaI) delta = JTr        (Cholesky, fp64)
+           4. params -= delta
 
-   No trust region, no accept/reject, no λ adaptation — every step is
-   taken blindly with a small fixed λ.  Converges quadratically near
+   No trust region, no accept/reject, no lambda adaptation -- every step is
+   taken blindly with a small fixed lambda.  Converges quadratically near
    the optimum for well-conditioned problems and can blow up far from
    it; full Levenberg-Marquardt adds the damping that makes it robust.
 
@@ -161,8 +161,8 @@ __global__ void residual_kernel(const float *out, const float *target,
 }
 
 /*
-   params -= δ,  per individual, per parameter.
-   δ is fp64 (Cholesky output); params stay fp32.
+   params -= delta,  per individual, per parameter.
+   delta is fp64 (Cholesky output); params stay fp32.
 */
 __global__ void apply_step_kernel(float *params, const double *delta, int n) {
     const int g   = blockIdx.x;
@@ -174,8 +174,8 @@ __global__ void apply_step_kernel(float *params, const double *delta, int n) {
 }
 
 /*
-   Cholesky solve:  build H = JᵀJ + λI and g = Jᵀr, factor H = LLᵀ,
-   forward solve Ly = g, back solve Lᵀδ = y.
+   Cholesky solve:  build H = JTJ + lambdaI and g = JTr, factor H = LLT,
+   forward solve Ly = g, back solve LTdelta = y.
 */
 __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
                                       const float *r,        // [G, m]
@@ -196,7 +196,7 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
     const size_t Jb  = (size_t)g * mr * n;
     const size_t rb  = (size_t)g * mr;
 
-    /* H = JᵀJ + λI  (parallel). */
+    /* H = JTJ + lambdaI  (parallel). */
     for (int idx = tid; idx < n * n; idx += B) {
         int i = idx / n, j = idx % n;
         double v = 0.0;
@@ -207,7 +207,7 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
         if (i == j) v += lam;
         H[i * n + j] = v;
     }
-    /* g = Jᵀr  (parallel). */
+    /* g = JTr  (parallel). */
     for (int i = tid; i < n; i += B) {
         double v = 0.0;
         for (int k = 0; k < mr; ++k) {
@@ -255,10 +255,10 @@ static void set_node(uint8_t *gen, int g, int row, uint8_t op,
 */
 static float target_fn(int ind, float x) {
     switch (ind) {
-        case 0: return sinf(x) + x * x;     /* sin(a·x) + (b·x)² at a=b=1 */
-        case 1: return x * x;                /* (a·x)² at a=1 */
-        case 2: return sinf(x);              /* sin(a·x) at a=1 */
-        case 3: return sinf(x);              /* a·sin(b·x) at a=b=1 */
+        case 0: return sinf(x) + x * x;     /* sin(a*x) + (b*x)^2 at a=b=1 */
+        case 1: return x * x;                /* (a*x)^2 at a=1 */
+        case 2: return sinf(x);              /* sin(a*x) at a=1 */
+        case 3: return sinf(x);              /* a*sin(b*x) at a=b=1 */
     }
     return 0.0f;
 }
@@ -331,7 +331,7 @@ int main(void) {
     const double lam        = 1e-3;
     const size_t smem_bytes = (size_t)(2 * n_p * n_p + 3 * n_p) * sizeof(double);
 
-    printf("\nGauss-Newton iteration (fixed λ = %.0e):\n\n", lam);
+    printf("\nGauss-Newton iteration (fixed lambda = %.0e):\n\n", lam);
     printf("iter   i0 loss        i1 loss        i2 loss        i3 loss\n");
 
     float h_r[G * m];

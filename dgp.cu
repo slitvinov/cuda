@@ -8,8 +8,8 @@
 
    Verification: each of the four hand-crafted individuals has a known
    analytic gradient, which we compare against the GPU result.
-       i0:  y = sin(x) + x²    dy/dx = cos(x) + 2x
-       i1:  y = x²             dy/dx = 2x
+       i0:  y = sin(x) + x^2    dy/dx = cos(x) + 2x
+       i1:  y = x^2             dy/dx = 2x
        i2:  y = sin(x)         dy/dx = cos(x)
        i3:  y = x              dy/dx = 1
 */
@@ -128,8 +128,8 @@ static void set_node(uint8_t *gen, int g, int row, uint8_t op,
 /* Analytic dy/dx for the four hand-crafted individuals. */
 static float analytic_grad(int ind, float x) {
     switch (ind) {
-        case 0: return cosf(x) + 2.0f * x;   // sin(x) + x²
-        case 1: return 2.0f * x;             // x²
+        case 0: return cosf(x) + 2.0f * x;   // sin(x) + x^2
+        case 1: return 2.0f * x;             // x^2
         case 2: return cosf(x);              // sin(x)
         case 3: return 1.0f;                 // x
     }
@@ -146,24 +146,24 @@ int main(void) {
 
     /* Same four genomes as gp.cu. */
 
-    /* Individual 0 — y = sin(x) + x². */
+    /* Individual 0 -- y = sin(x) + x^2. */
     set_node(h_genome, 0, 1, 2, 0, 0);
     set_node(h_genome, 0, 2, 4, 0, 0);
     set_node(h_genome, 0, 3, 0, 1, 2);
     set_node(h_genome, 0, 7, 0, 3, 0);
 
-    /* Individual 1 — y = x². */
+    /* Individual 1 -- y = x^2. */
     set_node(h_genome, 1, 1, 2, 0, 0);
     set_node(h_genome, 1, 7, 0, 1, 0);
 
-    /* Individual 2 — y = sin(x). */
+    /* Individual 2 -- y = sin(x). */
     set_node(h_genome, 2, 1, 4, 0, 0);
     set_node(h_genome, 2, 7, 0, 1, 0);
 
-    /* Individual 3 — y = x. */
+    /* Individual 3 -- y = x. */
     set_node(h_genome, 3, 7, 0, 0, 0);
 
-    /* GPU side — same as gp.cu, plus the tangent buffers. */
+    /* GPU side -- same as gp.cu, plus the tangent buffers. */
     float   *d_inputs, *d_state_v, *d_state_d, *d_out_v, *d_out_d;
     uint8_t *d_genome;
     cudaMalloc(&d_inputs,  sizeof(h_inputs));

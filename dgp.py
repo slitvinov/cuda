@@ -62,8 +62,8 @@ def set_node(g, row, op, p0=0, p1=0):
 
 
 def analytic_grad(ind, x):
-    if ind == 0: return np.cos(x) + 2.0 * x   # sin(x) + x²
-    if ind == 1: return 2.0 * x               # x²
+    if ind == 0: return np.cos(x) + 2.0 * x   # sin(x) + x^2
+    if ind == 1: return 2.0 * x               # x^2
     if ind == 2: return np.cos(x)             # sin(x)
     if ind == 3: return np.ones_like(x)       # x
 

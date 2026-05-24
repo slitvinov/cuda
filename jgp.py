@@ -84,10 +84,10 @@ def main():
     inputs = x.reshape(gi, N)
 
     # Same parameterized, non-linear-in-param individuals as jgp.cu:
-    #   i0:  y = sin(a·x) + (b·x)²    params a (q=0), b (q=2)
-    #   i1:  y = (a·x)²                a at q=0
-    #   i2:  y = sin(a·x)              a at q=0
-    #   i3:  y = a · sin(b·x)          b at q=0, a at q=2
+    #   i0:  y = sin(a*x) + (b*x)^2    params a (q=0), b (q=2)
+    #   i1:  y = (a*x)^2                a at q=0
+    #   i2:  y = sin(a*x)              a at q=0
+    #   i3:  y = a * sin(b*x)          b at q=0, a at q=2
     genomes = [np.zeros((ng_total, 3), dtype=np.uint8) for _ in range(G)]
 
     # i0
@@ -125,7 +125,7 @@ def main():
     Js = [forward_jacobian(params[g], inputs, genomes[g], gi, gn, go)[1]
           for g in range(G)]
 
-    # Analytic gradients (depend on parameter values — non-linear).
+    # Analytic gradients (depend on parameter values -- non-linear).
     def grad_i0_q0(x, p): return np.cos(p[0] * x) * x
     def grad_i0_q2(x, p): return 2.0 * p[2] * x * x
     def grad_i1_q0(x, p): return 2.0 * p[0] * x * x
@@ -134,17 +134,17 @@ def main():
     def grad_i3_q2(x, p): return np.sin(p[0] * x)
 
     active = [
-        [(0, "cos(a·x)·x",   grad_i0_q0), (2, "2·b·x²",      grad_i0_q2)],
-        [(0, "2·a·x²",       grad_i1_q0)],
-        [(0, "cos(a·x)·x",   grad_i2_q0)],
-        [(0, "a·cos(b·x)·x", grad_i3_q0), (2, "sin(b·x)",    grad_i3_q2)],
+        [(0, "cos(a*x)*x",   grad_i0_q0), (2, "2*b*x^2",      grad_i0_q2)],
+        [(0, "2*a*x^2",       grad_i1_q0)],
+        [(0, "cos(a*x)*x",   grad_i2_q0)],
+        [(0, "a*cos(b*x)*x", grad_i3_q0), (2, "sin(b*x)",    grad_i3_q2)],
     ]
 
     primary_labels = [
-        "i0 dy/da = cos(a·x)·x",
-        "i1 dy/da = 2·a·x²",
-        "i2 dy/da = cos(a·x)·x",
-        "i3 dy/db = a·cos(b·x)·x",
+        "i0 dy/da = cos(a*x)*x",
+        "i1 dy/da = 2*a*x^2",
+        "i2 dy/da = cos(a*x)*x",
+        "i3 dy/db = a*cos(b*x)*x",
     ]
     print(f"\n   x      {primary_labels[0]:<22}   {primary_labels[1]:<22}"
           f"   {primary_labels[2]:<22}   {primary_labels[3]:<22}")
@@ -163,7 +163,7 @@ def main():
         for q, label, grad_fn in active[g]:
             ref = grad_fn(x, params[g])
             err = float(np.max(np.abs(Js[g][0, :, q] - ref)))
-            print(f"  i{g}  q={q}  ∂y/∂{label:<18}  {err:.3e}")
+            print(f"  i{g}  q={q}  dy/d{label:<18}  {err:.3e}")
 
     # Inactive-column sanity.
     inactive_max = 0.0

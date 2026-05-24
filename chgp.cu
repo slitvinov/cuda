@@ -1,21 +1,21 @@
 /*
    Cholesky solve for one CGP step.  Per individual:
-     1. Build  H = JᵀJ + λI   (n_p × n_p, symmetric positive definite)
-     2. Build  g = Jᵀ · r     (here r = all-ones, self-contained demo)
-     3. Cholesky factor  H = L Lᵀ
+     1. Build  H = JTJ + lambdaI   (n_p x n_p, symmetric positive definite)
+     2. Build  g = JT * r     (here r = all-ones, self-contained demo)
+     3. Cholesky factor  H = L LT
      4. Forward solve   L y = g
-     5. Back solve      Lᵀ δ = y
-     6. Verify by recomputing  H · δ  and comparing against g.
+     5. Back solve      LT delta = y
+     6. Verify by recomputing  H * delta  and comparing against g.
 
-   The kernel uses double precision for H, L, g, δ.  Single precision
-   is fine for the forward pass and the Jacobian, but JᵀJ is often
+   The kernel uses double precision for H, L, g, delta.  Single precision
+   is fine for the forward pass and the Jacobian, but JTJ is often
    ill-conditioned and FP32 Cholesky breaks down.
 
-   Inside the kernel, H/g build and the H·δ verify are block-parallel;
+   Inside the kernel, H/g build and the H*delta verify are block-parallel;
    the Cholesky and the two triangular solves run single-threaded on
    tid == 0 because n_p is small.
 
-   No iteration, no damping, no residual from a target — just the small
+   No iteration, no damping, no residual from a target -- just the small
    dense linear algebra in isolation, verified against the equation it
    was supposed to solve.
 */
@@ -155,15 +155,15 @@ __global__ void forward_jac_kernel(const float   *params,
 
 /*
    Cholesky-solve kernel.  One block per individual.  Each block holds
-   H, L, g, y, δ in shared memory (double precision).
+   H, L, g, y, delta in shared memory (double precision).
 
-   Parallel:  H = JᵀJ + λI  build         (one thread per (i,j) cell)
-              g = Jᵀ · 1     build         (one thread per i)
-              H · δ          verify       (one thread per i)
+   Parallel:  H = JTJ + lambdaI  build         (one thread per (i,j) cell)
+              g = JT * 1     build         (one thread per i)
+              H * delta          verify       (one thread per i)
    Serial:    Cholesky factor              (tid == 0 only)
               forward + back substitution  (tid == 0 only)
 
-   J has shape [G, go, N, n_p]; we treat it as [G, m, n] with m = go·N.
+   J has shape [G, go, N, n_p]; we treat it as [G, m, n] with m = go*N.
 */
 __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
                                       double      *delta,    // [G, n_p]
@@ -172,18 +172,18 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
                                       int m, int n)
 {
     extern __shared__ double sm[];
-    double *H = sm;                 // n × n  (symmetric, stored full)
-    double *L = H + (size_t)n * n;  // n × n  (lower triangular)
+    double *H = sm;                 // n x n  (symmetric, stored full)
+    double *L = H + (size_t)n * n;  // n x n  (lower triangular)
     double *gv = L + (size_t)n * n; // n      (the RHS)
     double *y  = gv + n;            // n      (intermediate)
-    double *s  = y + n;             // n      (solution δ)
+    double *s  = y + n;             // n      (solution delta)
 
     const int    g   = blockIdx.x;
     const int    tid = threadIdx.x;
     const int    B   = blockDim.x;
     const size_t Jb  = (size_t)g * m * n;
 
-    /* 1. H = JᵀJ + λI   (parallel). */
+    /* 1. H = JTJ + lambdaI   (parallel). */
     for (int idx = tid; idx < n * n; idx += B) {
         int i = idx / n, j = idx % n;
         double v = 0.0;
@@ -195,7 +195,7 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
         H[i * n + j] = v;
     }
 
-    /* 2. g = Jᵀ · 1  (residual vector = all ones, for a self-contained
+    /* 2. g = JT * 1  (residual vector = all ones, for a self-contained
           demo without targets).  Parallel: one thread per i. */
     for (int i = tid; i < n; i += B) {
         double v = 0.0;
@@ -206,11 +206,11 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
     }
     __syncthreads();
 
-    /* 3, 4, 5. Cholesky factor + forward + back solve — serial, since
-       n_p is small (≤ ~100 in practice) and Cholesky has tight data
+    /* 3, 4, 5. Cholesky factor + forward + back solve -- serial, since
+       n_p is small (<= ~100 in practice) and Cholesky has tight data
        dependencies that don't parallelize cheaply. */
     if (tid == 0) {
-        /* H = L Lᵀ  (lower triangle of L). */
+        /* H = L LT  (lower triangle of L). */
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j <= i; ++j) {
                 double v = H[i * n + j];
@@ -224,7 +224,7 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
             for (int k = 0; k < i; ++k) v -= L[i*n + k] * y[k];
             y[i] = v / L[i * n + i];
         }
-        /* Lᵀ s = y   (back).  L_{k,i} for k > i lives in lower triangle of L. */
+        /* LT s = y   (back).  L_{k,i} for k > i lives in lower triangle of L. */
         for (int i = n - 1; i >= 0; --i) {
             double v = y[i];
             for (int k = i + 1; k < n; ++k) v -= L[k*n + i] * s[k];
@@ -234,8 +234,8 @@ __global__ void cholesky_solve_kernel(const float *J,        // [G, m, n_p]
     }
     __syncthreads();
 
-    /* 6. Verify: max_i |Σ_j H_{ij} δ_j - g_i|   (parallel rows; reduce
-          across rows via shared scratch — but n is small enough that
+    /* 6. Verify: max_i |sum_j H_{ij} delta_j - g_i|   (parallel rows; reduce
+          across rows via shared scratch -- but n is small enough that
           we do it single-threaded for clarity). */
     if (tid == 0) {
         double max_e = 0.0;
@@ -268,10 +268,10 @@ int main(void) {
 
     /*
        Four non-linear-in-parameter individuals:
-         i0:  y = sin(a·x) + (b·x)²
-         i1:  y = (a·x)²
-         i2:  y = sin(a·x)
-         i3:  y = a · sin(b·x)
+         i0:  y = sin(a*x) + (b*x)^2
+         i1:  y = (a*x)^2
+         i2:  y = sin(a*x)
+         i3:  y = a * sin(b*x)
     */
     set_node(h_genome, 0, 1, 6, 0, 0);
     set_node(h_genome, 0, 2, 4, 1, 0);
@@ -329,7 +329,7 @@ int main(void) {
     forward_jac_kernel<<<G, 32>>>(d_params, d_inputs, d_genome,
                                   d_state_v, d_state_t, d_out_v, d_J);
 
-    /* Stage 2: build H = JᵀJ + λI, solve Hδ = g, verify. */
+    /* Stage 2: build H = JTJ + lambdaI, solve Hdelta = g, verify. */
     const double lam = 1e-3;
     size_t smem_bytes = (size_t)(2 * n_p * n_p + 3 * n_p) * sizeof(double);
     cholesky_solve_kernel<<<G, 32, smem_bytes>>>(d_J, d_delta, d_err,
@@ -342,9 +342,9 @@ int main(void) {
     cudaMemcpy(h_err,   d_err,   bytes_err,   cudaMemcpyDeviceToHost);
 
     /* Report. */
-    printf("\nCholesky solve verification.  λ = %.1e,  m = %d,  n_p = %d.\n",
+    printf("\nCholesky solve verification.  lambda = %.1e,  m = %d,  n_p = %d.\n",
            lam, m, n_p);
-    printf("\nδ vector per individual (one row per individual, n_p=6 columns):\n");
+    printf("\ndelta vector per individual (one row per individual, n_p=6 columns):\n");
     printf("           q=0          q=1          q=2          q=3          q=4          q=5\n");
     for (int g = 0; g < G; ++g) {
         printf("  i%d  ", g);
@@ -354,12 +354,12 @@ int main(void) {
         printf("\n");
     }
 
-    printf("\nVerification: max |H·δ - g| per individual\n");
+    printf("\nVerification: max |H*delta - g| per individual\n");
     const char *labels[G] = {
-        "i0  sin(a·x) + (b·x)²   active q = {0, 2}",
-        "i1  (a·x)²              active q = {0}",
-        "i2  sin(a·x)            active q = {0}",
-        "i3  a·sin(b·x)          active q = {0, 2}",
+        "i0  sin(a*x) + (b*x)^2   active q = {0, 2}",
+        "i1  (a*x)^2              active q = {0}",
+        "i2  sin(a*x)            active q = {0}",
+        "i3  a*sin(b*x)          active q = {0, 2}",
     };
     for (int g = 0; g < G; ++g) {
         printf("  %-40s   %.3e\n", labels[g], h_err[g]);

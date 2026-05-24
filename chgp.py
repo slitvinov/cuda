@@ -1,11 +1,11 @@
 """
 Cholesky solve for one CGP individual:
-   1. Build  H = JᵀJ + λI
-   2. Build  g = Jᵀ · 1     (synthetic RHS for the demo)
-   3. Cholesky factor       H = L Lᵀ
+   1. Build  H = JTJ + lambdaI
+   2. Build  g = JT * 1     (synthetic RHS for the demo)
+   3. Cholesky factor       H = L LT
    4. Forward solve         L y = g
-   5. Back solve            Lᵀ δ = y
-   6. Verify by recomputing H · δ and comparing against g.
+   5. Back solve            LT delta = y
+   6. Verify by recomputing H * delta and comparing against g.
 
 H/g build use numpy matrix ops (the "parallel" part of the CUDA
 kernel).  Cholesky and triangular solves are written with explicit
@@ -25,8 +25,8 @@ def cholesky_solve(J, lam):
     """
     J: float32 [m, n_p]
     lam: scalar
-    Synthetic RHS g = J^T · 1.
-    Returns (delta [n_p], max_err = max|H·δ - g|).
+    Synthetic RHS g = J^T * 1.
+    Returns (delta [n_p], max_err = max|H*delta - g|).
     """
     m, n = J.shape
     Jd = J.astype(np.float64)
@@ -52,7 +52,7 @@ def cholesky_solve(J, lam):
             v -= L[i, k] * y[k]
         y[i] = v / L[i, i]
 
-    # Serial: back solve Lᵀ s = y.
+    # Serial: back solve LT s = y.
     s = np.zeros(n)
     for i in range(n - 1, -1, -1):
         v = y[i]
@@ -107,9 +107,9 @@ def main():
         J_flat = J.reshape(m, n_p)
         deltas[g], errs[g] = cholesky_solve(J_flat, lam)
 
-    print(f"\nCholesky solve verification.  λ = {lam:.1e},  m = {m},  n_p = {n_p}.")
+    print(f"\nCholesky solve verification.  lambda = {lam:.1e},  m = {m},  n_p = {n_p}.")
 
-    print("\nδ vector per individual (one row per individual, n_p=6 columns):")
+    print("\ndelta vector per individual (one row per individual, n_p=6 columns):")
     print("           q=0          q=1          q=2          q=3          q=4          q=5")
     for g in range(G):
         line = f"  i{g}  "
@@ -118,12 +118,12 @@ def main():
         print(line)
 
     labels = [
-        "i0  sin(a·x) + (b·x)²   active q = {0, 2}",
-        "i1  (a·x)²              active q = {0}",
-        "i2  sin(a·x)            active q = {0}",
-        "i3  a·sin(b·x)          active q = {0, 2}",
+        "i0  sin(a*x) + (b*x)^2   active q = {0, 2}",
+        "i1  (a*x)^2              active q = {0}",
+        "i2  sin(a*x)            active q = {0}",
+        "i3  a*sin(b*x)          active q = {0, 2}",
     ]
-    print("\nVerification: max |H·δ - g| per individual")
+    print("\nVerification: max |H*delta - g| per individual")
     for g in range(G):
         print(f"  {labels[g]:<40}   {errs[g]:.3e}")
 

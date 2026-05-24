@@ -2,17 +2,17 @@
    Parameterized CGP: full Jacobian via forward-mode AD over per-node
    continuous parameters.
 
-   Op set includes  6 = par·v0  and  7 = par  for parameterized nodes,
+   Op set includes  6 = par*v0  and  7 = par  for parameterized nodes,
    so each individual carries a parameter array  params[G, n_p]  with
-   p parameters per node (n_p = gn·p).  Output is the Jacobian
-   J[G, go, N, n_p] = ∂(out) / ∂(every parameter).
+   p parameters per node (n_p = gn*p).  Output is the Jacobian
+   J[G, go, N, n_p] = d(out) / d(every parameter).
 
    Two-pass kernel:
-     Pass 1 — forward values only.
-     Pass 2 — for each q ∈ [0, n_p):  seed par_t = 1 at node q,
+     Pass 1 -- forward values only.
+     Pass 2 -- for each q in [0, n_p):  seed par_t = 1 at node q,
               propagate tangents, store column q of J.
 
-   No solver, no fitting, no iteration — just compute the Jacobian and
+   No solver, no fitting, no iteration -- just compute the Jacobian and
    verify it column-by-column against analytic gradients.
 */
 
@@ -53,7 +53,7 @@ __device__ __forceinline__ void apply_op_jvp(uint8_t op,
         }
         case 4: *v = sinf(v0);    *t =  cosf(v0) * t0;         break;  // sin
         case 5: *v = cosf(v0);    *t = -sinf(v0) * t0;         break;  // cos
-        case 6: *v = par * v0;    *t = par_t * v0 + par * t0;  break;  // par·v0
+        case 6: *v = par * v0;    *t = par_t * v0 + par * t0;  break;  // par*v0
         case 7: *v = par;         *t = par_t;                  break;  // par
         default: *v = 0.0f;       *t = 0.0f;
     }
@@ -180,11 +180,11 @@ static void set_node(uint8_t *gen, int g, int row, uint8_t op,
    takes the per-individual parameter vector so the result can depend
    on parameter values (these are non-linear in the parameter).
 */
-static float grad_i0_q0(float x, const float *p) { return cosf(p[0] * x) * x; }       /* dy/da of sin(a·x) + (b·x)² */
+static float grad_i0_q0(float x, const float *p) { return cosf(p[0] * x) * x; }       /* dy/da of sin(a*x) + (b*x)^2 */
 static float grad_i0_q2(float x, const float *p) { return 2.0f * p[2] * x * x; }      /* dy/db */
-static float grad_i1_q0(float x, const float *p) { return 2.0f * p[0] * x * x; }      /* dy/da of (a·x)² */
-static float grad_i2_q0(float x, const float *p) { return cosf(p[0] * x) * x; }       /* dy/da of sin(a·x) */
-static float grad_i3_q0(float x, const float *p) { return p[2] * cosf(p[0]*x) * x; }  /* dy/db of a·sin(b·x), b at q=0 */
+static float grad_i1_q0(float x, const float *p) { return 2.0f * p[0] * x * x; }      /* dy/da of (a*x)^2 */
+static float grad_i2_q0(float x, const float *p) { return cosf(p[0] * x) * x; }       /* dy/da of sin(a*x) */
+static float grad_i3_q0(float x, const float *p) { return p[2] * cosf(p[0]*x) * x; }  /* dy/db of a*sin(b*x), b at q=0 */
 static float grad_i3_q2(float x, const float *p) { return sinf(p[0] * x); }            /* dy/da, a at q=2 */
 
 int main(void) {
@@ -196,38 +196,38 @@ int main(void) {
 
     /*
        Four individuals, all with at least one parameter that enters
-       non-linearly (i.e. ∂y/∂θ depends on θ):
+       non-linearly (i.e. dy/dtheta depends on theta):
 
-         i0:  y = sin(a·x) + (b·x)²      params a (q=0), b (q=2)
-         i1:  y = (a·x)²                  param  a (q=0)
-         i2:  y = sin(a·x)                param  a (q=0)
-         i3:  y = a · sin(b·x)            params b (q=0), a (q=2)
-                                          — a is linear, b is non-linear
+         i0:  y = sin(a*x) + (b*x)^2      params a (q=0), b (q=2)
+         i1:  y = (a*x)^2                  param  a (q=0)
+         i2:  y = sin(a*x)                param  a (q=0)
+         i3:  y = a * sin(b*x)            params b (q=0), a (q=2)
+                                          -- a is linear, b is non-linear
     */
     uint8_t h_genome[G * ng_total * 3] = {};
 
-    /* i0:  a·x, sin(a·x), b·x, (b·x)², sum, output. */
-    set_node(h_genome, 0, 1, 6, 0, 0);   // par·x       = a·x      | par at q=0
-    set_node(h_genome, 0, 2, 4, 1, 0);   // sin(row1)   = sin(a·x)
-    set_node(h_genome, 0, 3, 6, 0, 0);   // par·x       = b·x      | par at q=2
-    set_node(h_genome, 0, 4, 2, 3, 3);   // row3·row3   = (b·x)²
+    /* i0:  a*x, sin(a*x), b*x, (b*x)^2, sum, output. */
+    set_node(h_genome, 0, 1, 6, 0, 0);   // par*x       = a*x      | par at q=0
+    set_node(h_genome, 0, 2, 4, 1, 0);   // sin(row1)   = sin(a*x)
+    set_node(h_genome, 0, 3, 6, 0, 0);   // par*x       = b*x      | par at q=2
+    set_node(h_genome, 0, 4, 2, 3, 3);   // row3*row3   = (b*x)^2
     set_node(h_genome, 0, 5, 0, 2, 4);   // row2 + row4
-    set_node(h_genome, 0, 7, 0, 5, 0);   // output ← row 5
+    set_node(h_genome, 0, 7, 0, 5, 0);   // output <- row 5
 
-    /* i1:  a·x, (a·x)², output. */
-    set_node(h_genome, 1, 1, 6, 0, 0);   // par·x       = a·x      | par at q=0
-    set_node(h_genome, 1, 2, 2, 1, 1);   // row1·row1   = (a·x)²
+    /* i1:  a*x, (a*x)^2, output. */
+    set_node(h_genome, 1, 1, 6, 0, 0);   // par*x       = a*x      | par at q=0
+    set_node(h_genome, 1, 2, 2, 1, 1);   // row1*row1   = (a*x)^2
     set_node(h_genome, 1, 7, 0, 2, 0);
 
-    /* i2:  a·x, sin(a·x), output. */
-    set_node(h_genome, 2, 1, 6, 0, 0);   // par·x       = a·x      | par at q=0
-    set_node(h_genome, 2, 2, 4, 1, 0);   // sin(row1)   = sin(a·x)
+    /* i2:  a*x, sin(a*x), output. */
+    set_node(h_genome, 2, 1, 6, 0, 0);   // par*x       = a*x      | par at q=0
+    set_node(h_genome, 2, 2, 4, 1, 0);   // sin(row1)   = sin(a*x)
     set_node(h_genome, 2, 7, 0, 2, 0);
 
-    /* i3:  b·x, sin(b·x), a·sin(b·x), output. */
-    set_node(h_genome, 3, 1, 6, 0, 0);   // par·x       = b·x      | par at q=0 (b)
-    set_node(h_genome, 3, 2, 4, 1, 0);   // sin(row1)   = sin(b·x)
-    set_node(h_genome, 3, 3, 6, 2, 0);   // par·row2    = a·sin(b·x)| par at q=2 (a)
+    /* i3:  b*x, sin(b*x), a*sin(b*x), output. */
+    set_node(h_genome, 3, 1, 6, 0, 0);   // par*x       = b*x      | par at q=0 (b)
+    set_node(h_genome, 3, 2, 4, 1, 0);   // sin(row1)   = sin(b*x)
+    set_node(h_genome, 3, 3, 6, 2, 0);   // par*row2    = a*sin(b*x)| par at q=2 (a)
     set_node(h_genome, 3, 7, 0, 3, 0);
 
     /* Non-trivial parameter values so the non-linear dependence shows. */
@@ -273,16 +273,16 @@ int main(void) {
         float (*grad)(float, const float *);
     };
     Active active[G][2] = {
-        {{0, "cos(a·x)·x",   grad_i0_q0}, {2, "2·b·x²",      grad_i0_q2}},
-        {{0, "2·a·x²",       grad_i1_q0}, {-1, nullptr,       nullptr}},
-        {{0, "cos(a·x)·x",   grad_i2_q0}, {-1, nullptr,       nullptr}},
-        {{0, "a·cos(b·x)·x", grad_i3_q0}, {2, "sin(b·x)",    grad_i3_q2}},
+        {{0, "cos(a*x)*x",   grad_i0_q0}, {2, "2*b*x^2",      grad_i0_q2}},
+        {{0, "2*a*x^2",       grad_i1_q0}, {-1, nullptr,       nullptr}},
+        {{0, "cos(a*x)*x",   grad_i2_q0}, {-1, nullptr,       nullptr}},
+        {{0, "a*cos(b*x)*x", grad_i3_q0}, {2, "sin(b*x)",    grad_i3_q2}},
     };
 
     /* Side-by-side table: primary active gradient (column 0 of `active`). */
     const char *primary[G] = {
-        "i0 dy/da = cos(a·x)·x", "i1 dy/da = 2·a·x²",
-        "i2 dy/da = cos(a·x)·x", "i3 dy/db = a·cos(b·x)·x",
+        "i0 dy/da = cos(a*x)*x", "i1 dy/da = 2*a*x^2",
+        "i2 dy/da = cos(a*x)*x", "i3 dy/db = a*cos(b*x)*x",
     };
     printf("\n   x      %-22s   %-22s   %-22s   %-22s\n",
            primary[0], primary[1], primary[2], primary[3]);
@@ -311,7 +311,7 @@ int main(void) {
                 float e = fabsf(v - r);
                 if (e > max_err) max_err = e;
             }
-            printf("  i%d  q=%d  ∂y/∂%-18s  %.3e\n",
+            printf("  i%d  q=%d  dy/d%-18s  %.3e\n",
                    g, q, active[g][a_i].label, max_err);
         }
     }
