@@ -16,7 +16,6 @@ __global__ static void kernel(const float *input, float *output,
     if (tid < d) {
       float f0 = shared[tid];
       float f1 = shared[tid + d];
-
       if (f1 < f0) {
         shared[tid] = f1;
       }
@@ -35,7 +34,7 @@ int main(int argc, char **argv) {
   clock_t *dtimer, *timer;
   num_block = atoi(argv[1]);
   cudaMallocHost(&timer, 2 * num_block * sizeof *timer);
-  cudaMallocHost(&input, 2 * num_block * sizeof *input);
+  cudaMallocHost(&input, NUM_THREADS * 2 * sizeof *input);
   for (int i = 0; i < NUM_THREADS * 2; i++) {
     input[i] = i;
   }
