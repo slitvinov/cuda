@@ -29,25 +29,27 @@ __global__ void f(int *a) {
   }
 }
 int main(int argc, char **argv) {
-  int bl, i, *a;
+  int bl, i, j, *a;
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
   assert(prop.warpSize == th);
   assert(n == th);
   cudaMallocManaged(&a, n * sizeof *a);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
-  std::iota(a, a + n, 0);
-  std::shuffle(a, a + n, rng);
-  for (i = 0; i < n; i++)
-    printf("%02d ", a[i]);
-  printf("\n");
-  bl = (n + th - 1) / th;
-  f<<<bl, th>>>(a);
-  cudaDeviceSynchronize();
-  assert(a[0] == n - 1);
-  for (i = 0; i < n; i++)
-    printf(i == a[1] ? "^^ " : "   ");
-  printf("\n");  
+  for (j = 0; j < 10; j++) {
+    std::iota(a, a + n, 0);
+    std::shuffle(a, a + n, rng);
+    for (i = 0; i < n; i++)
+      printf("%02d ", a[i]);
+    printf("\n");
+    bl = (n + th - 1) / th;
+    f<<<bl, th>>>(a);
+    cudaDeviceSynchronize();
+    assert(a[0] == n - 1);
+    for (i = 0; i < n; i++)
+      printf(i == a[1] ? "^^ " : "   ");
+    printf("\n");
+  }
   cudaFree(a);
   return 0;
 }
