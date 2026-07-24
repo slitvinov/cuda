@@ -57,12 +57,13 @@ int main(int argc, char **argv) {
   cudaMalloc(&t, (warm + iters) * th * NT * sizeof *t);
   cudaMemset(t, 0xff, (warm + iters) * th * NT * sizeof *t);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
-  std::iota(h, h + n, 0);
-  std::shuffle(h, h + n, rng);
   bl = (n + th - 1) / th;
-  cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
-  for (j = 0; j < warm + iters; j++)
+  for (j = 0; j < warm + iters; j++) {
+    std::iota(h, h + n, 0);
+    std::shuffle(h, h + n, rng);
+    cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
     f<<<bl, th>>>(a, t + j * (size_t)th * NT);
+  }
   ht = (int64_t *)malloc((warm + iters) * th * NT * sizeof *ht);
   cudaMemcpy(ht, t, (warm + iters) * th * NT * sizeof *t, cudaMemcpyDeviceToHost);
   for (j = warm; j < warm + iters; j++) {
