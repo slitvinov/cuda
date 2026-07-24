@@ -11,11 +11,12 @@
 enum {n = 32, th = 32, warm = 100, iters = 1000, NT = 10};
 __global__ void f(int *a, int64_t *t) {
   uint64_t ts[NT];
-  uint32_t smid;
+  uint32_t smid, warpid;
   int k = 0, tid, s;
   __shared__ int b[n], c[n];
 #define TS() reg_clock64(&ts[k++])
   reg_smid(&smid);
+  reg_warpid(&warpid);
   TS();
   tid = blockIdx.x * blockDim.x + threadIdx.x;
   TS();
@@ -38,9 +39,10 @@ __global__ void f(int *a, int64_t *t) {
     a[0] = b[0];
     a[1] = c[0];
     t[0] = smid;
-    for (int i = 0; i < NT - 1; i++)
+    t[1] = warpid;
+    for (int i = 0; i < NT - 2; i++)
       if (i < k)
-	t[i + 1] = ts[i];
+	t[i + 2] = ts[i];
   }
 }
 int main(int argc, char **argv) {
@@ -65,10 +67,10 @@ int main(int argc, char **argv) {
   ht = (int64_t *)malloc((warm + iters) * NT * sizeof *ht);
   cudaMemcpy(ht, t, (warm + iters) * NT * sizeof *t, cudaMemcpyDeviceToHost);
   for (j = warm; j < warm + iters; j++) {
-    printf("%" PRId64 " ", ht[j * NT]);
-    for (i = 2; i < NT; i++)
+    printf("%" PRId64 " %" PRId64 " ", ht[j * NT], ht[j * NT + 1]);
+    for (i = 3; i < NT; i++)
       if (ht[j * NT + i] != -1)
-	printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT + 1]);
+	printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT + 2]);
     printf("\n");
   }
   free(ht);
