@@ -9,15 +9,21 @@
 #include <numeric>
 #include <random>
 #include <cassert>
-enum {n = 32, th = 32, iters = 100};
+enum {n = 32, th = 32, warm = 10, iters = 1000, NT = 10};
 __global__ void f(int *a, int64_t *t) {
-  int tid, s;
-  uint64_t start, end;
+  uint64_t ts[NT];
+  int k = 0, tid, s;
   __shared__ int b[n], c[n];
-  reg_clock64(&start);
+#define TS() reg_clock64(&ts[k++])
+#pragma unroll
+  for (int i = 0; i < NT; i++)
+    ts[i] = ~0ULL;
+  TS();
   tid = blockIdx.x * blockDim.x + threadIdx.x;
   b[tid] = a[tid];
+  TS();  
   c[tid] = tid;
+  TS();
   #pragma unroll
   for (s = n / 2; s > 0; s >>= 1) {
     __syncwarp();
@@ -28,34 +34,42 @@ __global__ void f(int *a, int64_t *t) {
       }
     }
   }
-  __syncwarp();
-  reg_clock64(&end);
+  TS();
   if (tid == 0) {
     a[0] = b[0];
     a[1] = c[0];
-    t[0] = end - start;
+    #pragma unroll
+    for (int i = 0; i < NT; i++)
+      t[i] = ts[i];
   }
 }
 int main(int argc, char **argv) {
-  int bl, j, *a, h[n];
-  int64_t *t, ht[iters];
+  int bl, *a, h[n];
+  size_t i, j;
+  int64_t *t, *ht;
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
   assert(prop.warpSize == th);
   assert(n == th);
   cudaMalloc(&a, n * sizeof *a);
-  cudaMalloc(&t, iters * sizeof *t);
+  cudaMalloc(&t, (warm + iters) * NT * sizeof *t);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
-  for (j = 0; j < iters; j++) {
-    std::iota(h, h + n, 0);
-    std::shuffle(h, h + n, rng);
-    bl = (n + th - 1) / th;
+  std::iota(h, h + n, 0);
+  std::shuffle(h, h + n, rng);
+  bl = (n + th - 1) / th;
+  for (j = 0; j < warm + iters; j++) {
     cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
-    f<<<bl, th>>>(a, t + j);
+    f<<<bl, th>>>(a, t + j * NT);
   }
-  cudaMemcpy(ht, t, iters * sizeof *t, cudaMemcpyDeviceToHost);
-  for (j = 0; j < iters; j++)
-    printf("%8" PRIu64 "\n", ht[j]);
+  ht = (int64_t *)malloc((warm + iters) * NT * sizeof *ht);
+  cudaMemcpy(ht, t, (warm + iters) * NT * sizeof *t, cudaMemcpyDeviceToHost);
+  for (j = warm; j < warm + iters; j++) {
+    for (i = 1; i < NT; i++)
+      if (ht[j * NT + i] != -1)
+        printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT]);
+    printf("\n");
+  }
+  free(ht);
   cudaFree(t);
   cudaFree(a);
   return 0;
