@@ -17,9 +17,9 @@ __global__ void f(int *a, int64_t *t) {
 #define TS() reg_clock64(&ts[k++])
   TS();
   tid = blockIdx.x * blockDim.x + threadIdx.x;
-  TS();  
+  TS();
   b[tid] = a[tid];
-  TS();  
+  TS();
   c[tid] = tid;
   TS();
   #pragma unroll
@@ -27,8 +27,8 @@ __global__ void f(int *a, int64_t *t) {
     __syncwarp();
     if (tid < s) {
       if (b[tid] < b[tid + s]) {
-        b[tid] = b[tid + s];
-        c[tid] = c[tid + s];
+	b[tid] = b[tid + s];
+	c[tid] = c[tid + s];
       }
     }
   }
@@ -39,7 +39,7 @@ __global__ void f(int *a, int64_t *t) {
     #pragma unroll
     for (int i = 0; i < NT; i++)
       if (i < k)
-        t[i] = ts[i];
+	t[i] = ts[i];
   }
 }
 int main(int argc, char **argv) {
@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
   for (j = warm; j < warm + iters; j++) {
     for (i = 1; i < NT; i++)
       if (ht[j * NT + i] != -1)
-        printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT]);
+	printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT]);
     printf("\n");
   }
   free(ht);
