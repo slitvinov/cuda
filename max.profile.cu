@@ -38,12 +38,12 @@ __global__ void f(int *a, int64_t *t) {
   if (tid == 0) {
     a[0] = b[0];
     a[1] = c[0];
-    t[0] = smid;
-    t[1] = warpid;
-    for (int i = 0; i < NT - 2; i++)
-      if (i < k)
-	t[i + 2] = ts[i];
   }
+  t[tid * NT] = smid;
+  t[tid * NT + 1] = warpid;
+  for (int i = 0; i < NT - 2; i++)
+    if (i < k)
+      t[tid * NT + i + 2] = ts[i];
 }
 int main(int argc, char **argv) {
   int bl, *a, h[n];
@@ -54,23 +54,26 @@ int main(int argc, char **argv) {
   assert(prop.warpSize == th);
   assert(n == th);
   cudaMalloc(&a, n * sizeof *a);
-  cudaMalloc(&t, (warm + iters) * NT * sizeof *t);
-  cudaMemset(t, 0xff, (warm + iters) * NT * sizeof *t);
+  cudaMalloc(&t, (warm + iters) * th * NT * sizeof *t);
+  cudaMemset(t, 0xff, (warm + iters) * th * NT * sizeof *t);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
   std::iota(h, h + n, 0);
   std::shuffle(h, h + n, rng);
   bl = (n + th - 1) / th;
-  for (j = 0; j < warm + iters; j++) {
-    cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
-    f<<<bl, th>>>(a, t + j * NT);
-  }
-  ht = (int64_t *)malloc((warm + iters) * NT * sizeof *ht);
-  cudaMemcpy(ht, t, (warm + iters) * NT * sizeof *t, cudaMemcpyDeviceToHost);
+  cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
+  for (j = 0; j < warm + iters; j++)
+    f<<<bl, th>>>(a, t + j * (size_t)th * NT);
+  ht = (int64_t *)malloc((warm + iters) * th * NT * sizeof *ht);
+  cudaMemcpy(ht, t, (warm + iters) * th * NT * sizeof *t, cudaMemcpyDeviceToHost);
   for (j = warm; j < warm + iters; j++) {
-    printf("%" PRId64 " %" PRId64 " ", ht[j * NT], ht[j * NT + 1]);
+    int64_t *base = ht + j * (size_t)th * NT;
+    for (int lane = 1; lane < th; lane++)
+      for (int slot = 0; slot < NT; slot++)
+	assert(base[lane * NT + slot] == base[slot]);
+    printf("%" PRId64 " %" PRId64 " ", base[0], base[1]);
     for (i = 3; i < NT; i++)
-      if (ht[j * NT + i] != -1)
-	printf("%" PRId64 " ", ht[j * NT + i] - ht[j * NT + 2]);
+      if (base[i] != -1)
+	printf("%" PRId64 " ", base[i] - base[2]);
     printf("\n");
   }
   free(ht);
