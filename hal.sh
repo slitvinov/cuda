@@ -2,7 +2,7 @@
 
 if test -r host
 then read h < host
-else h=gh
+else h=hg
 fi
 
 case $# in

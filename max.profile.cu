@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <cuda/cmath>
 #include <inttypes.h>
 #include <reg.h>
 #include <stdint.h>
@@ -9,7 +8,7 @@
 #include <numeric>
 #include <random>
 #include <cassert>
-enum {n = 32, th = 32, warm = 10, iters = 10000, NT = 10};
+enum {n = 32, th = 32, warm = 100, iters = 10000, NT = 10};
 __global__ void f(int *a, int64_t *t) {
   uint64_t ts[NT];
   int k = 0, tid, s;
@@ -36,7 +35,6 @@ __global__ void f(int *a, int64_t *t) {
   if (tid == 0) {
     a[0] = b[0];
     a[1] = c[0];
-    #pragma unroll
     for (int i = 0; i < NT; i++)
       if (i < k)
 	t[i] = ts[i];

@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <cuda/cmath>
 #include <inttypes.h>
 #include <reg.h>
 #include <stdint.h>
