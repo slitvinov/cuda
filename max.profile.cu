@@ -15,11 +15,9 @@ __global__ void f(int *a, int64_t *t) {
   int k = 0, tid, s;
   __shared__ int b[n], c[n];
 #define TS() reg_clock64(&ts[k++])
-#pragma unroll
-  for (int i = 0; i < NT; i++)
-    ts[i] = ~0ULL;
   TS();
   tid = blockIdx.x * blockDim.x + threadIdx.x;
+  TS();  
   b[tid] = a[tid];
   TS();  
   c[tid] = tid;
@@ -40,7 +38,8 @@ __global__ void f(int *a, int64_t *t) {
     a[1] = c[0];
     #pragma unroll
     for (int i = 0; i < NT; i++)
-      t[i] = ts[i];
+      if (i < k)
+        t[i] = ts[i];
   }
 }
 int main(int argc, char **argv) {
@@ -53,6 +52,7 @@ int main(int argc, char **argv) {
   assert(n == th);
   cudaMalloc(&a, n * sizeof *a);
   cudaMalloc(&t, (warm + iters) * NT * sizeof *t);
+  cudaMemset(t, 0xff, (warm + iters) * NT * sizeof *t);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
   std::iota(h, h + n, 0);
   std::shuffle(h, h + n, rng);
