@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <cuda/cmath>
 #include <inttypes.h>
 #include <reg.h>
@@ -54,7 +55,7 @@ int main(int argc, char **argv) {
   }
   cudaMemcpy(ht, t, iters * sizeof *t, cudaMemcpyDeviceToHost);
   for (j = 0; j < iters; j++)
-    printf("%5d %8" PRIu64 "\n", j, ht[j]);
+    printf("%8" PRIu64 "\n", ht[j]);
   cudaFree(t);
   cudaFree(a);
   return 0;
