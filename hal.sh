@@ -1,6 +1,9 @@
 #!/bin/sh
 
-if ! read h < host 2>/dev/null; then h=gh; fi
+if test -r host
+then read h < host
+else h=gh
+fi
 
 case $# in
   0) payload=$(cat) ;;
