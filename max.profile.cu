@@ -8,7 +8,7 @@
 #include <numeric>
 #include <random>
 #include <cassert>
-enum {n = 32, th = 32, warm = 100, iters = 1000, NT = 10};
+enum {n = 32, th = 32, warm = 100, iters = 10000000, NT = 10};
 __global__ void f(int *a, int64_t *t) {
   uint64_t ts[NT];
   uint32_t smid, warpid;
@@ -29,8 +29,8 @@ __global__ void f(int *a, int64_t *t) {
     __syncwarp();
     if (tid < s) {
       if (b[tid] < b[tid + s]) {
-	b[tid] = b[tid + s];
-	c[tid] = c[tid + s];
+        b[tid] = b[tid + s];
+        c[tid] = c[tid + s];
       }
     }
   }
@@ -46,38 +46,46 @@ __global__ void f(int *a, int64_t *t) {
       t[tid * NT + i + 2] = ts[i];
 }
 int main(int argc, char **argv) {
-  int bl, *a, h[n];
+  int bl, *a, *a2, h[n];
   size_t i, j;
-  int64_t *t, *ht;
+  int64_t *t, *tjunk;
+  int64_t ht[th * NT];
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
   assert(prop.warpSize == th);
   assert(n == th);
   cudaMalloc(&a, n * sizeof *a);
-  cudaMalloc(&t, (warm + iters) * th * NT * sizeof *t);
-  cudaMemset(t, 0xff, (warm + iters) * th * NT * sizeof *t);
+  cudaMalloc(&a2, n * sizeof *a2);
+  cudaMalloc(&tjunk, th * NT * sizeof *tjunk);
+  size_t flushbytes = 2 * (size_t)prop.l2CacheSize;
+  char *flush;
+  cudaMalloc(&flush, flushbytes);
+  cudaMalloc(&t, th * NT * sizeof *t);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
   bl = (n + th - 1) / th;
   for (j = 0; j < warm + iters; j++) {
     std::iota(h, h + n, 0);
     std::shuffle(h, h + n, rng);
     cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
-    f<<<bl, th>>>(a, t + j * (size_t)th * NT);
-  }
-  ht = (int64_t *)malloc((warm + iters) * th * NT * sizeof *ht);
-  cudaMemcpy(ht, t, (warm + iters) * th * NT * sizeof *t, cudaMemcpyDeviceToHost);
-  for (j = warm; j < warm + iters; j++) {
-    int64_t *base = ht + j * (size_t)th * NT;
+    cudaMemset(flush, j, flushbytes);
+    cudaMemset(t, 0xff, th * NT * sizeof *t);
+    f<<<bl, th>>>(a2, tjunk);
+    f<<<bl, th>>>(a, t);
+    cudaMemcpy(ht, t, th * NT * sizeof *t, cudaMemcpyDeviceToHost);
+    if (j < warm)
+      continue;
     for (int lane = 1; lane < th; lane++)
       for (int slot = 0; slot < NT; slot++)
-	assert(base[lane * NT + slot] == base[slot]);
-    printf("%" PRId64 " %" PRId64 " ", base[0], base[1]);
+        assert(ht[lane * NT + slot] == ht[slot]);
+    printf("%" PRId64 " %" PRId64 " ", ht[0], ht[1]);
     for (i = 3; i < NT; i++)
-      if (base[i] != -1)
-	printf("%" PRId64 " ", base[i] - base[2]);
+      if (ht[i] != -1)
+        printf("%" PRId64 " ", ht[i] - ht[2]);
     printf("\n");
   }
-  free(ht);
+  cudaFree(flush);
+  cudaFree(tjunk);
+  cudaFree(a2);
   cudaFree(t);
   cudaFree(a);
   return 0;
