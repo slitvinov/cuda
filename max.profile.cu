@@ -14,8 +14,8 @@ __global__ void f(int *a, int64_t *t) {
   int tid, s;
   uint64_t start, end;
   __shared__ int b[n], c[n];
-  tid = blockIdx.x * blockDim.x + threadIdx.x;
   reg_clock64(&start);
+  tid = blockIdx.x * blockDim.x + threadIdx.x;
   b[tid] = a[tid];
   c[tid] = tid;
   #pragma unroll
