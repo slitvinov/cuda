@@ -13,4 +13,4 @@ ssh rc "srun --overlap -n 1 --jobid $j hostname" > "$out"
 read h < "$out"
 n=${h%%.*}
 rsync *.h *.cu "$h:/tmp/" &&
-ssh rc "srun --chdir=/tmp --overlap --jobid $j -w $n sh -lc \"ml cuda && \$(echo $b64 | base64 -d)\""
+ssh -n rc "srun --chdir=/tmp --overlap --jobid $j -w $n sh -lc \"ml cuda && \$(echo $b64 | base64 -d)\""
