@@ -14,9 +14,9 @@ __global__ void f(int *a) {
   b[tid] = a[tid];
   c[tid] = tid;
   #pragma unroll
-  for (s = 1; s < n; s <<= 1) {
+  for (s = n / 2; s > 0; s >>= 1) {
     __syncwarp();
-    if (tid + s < n) {
+    if (tid < s) {
       if (b[tid] < b[tid + s]) {
         b[tid] = b[tid + s];
         c[tid] = c[tid + s];
