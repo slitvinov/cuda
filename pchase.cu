@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <inttypes.h>
-#include <reg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <algorithm>
 #include <numeric>
 #include <random>
-enum { n = 1u << 10, iters = 100000, STRIDE = 32 };
+
+#include "reg.h"
+enum { n = 1, iters = 100000, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
   uint64_t gt[n], ts[n];
