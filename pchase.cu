@@ -77,8 +77,8 @@ int main() {
     if (j == 0)
       gt = hr->gt[0];
     for (i = 0; i < n; i++)
-      printf("%" PRIu32 " %" PRIu64 " %" PRIu64 "\n", h_idx[i], hr->gt[i] - gt,
-             hr->ts[i]);
+      printf("%" PRIu64 " %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
+             hr->gt[i] - gt, hr->ts[i]);
   }
   if (cudaFree(flush) != cudaSuccess ||
       cudaFree(a2) != cudaSuccess ||
