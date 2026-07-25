@@ -5,10 +5,13 @@
 #include <algorithm>
 #include <numeric>
 #include <random>
+#include <thread>
+#include <chrono>
+#include <time.h>
 
 #include "reg.h"
 #include "tick.h"
-enum { n = 1, iters = 100000, STRIDE = 32 };
+enum { n = 1 << 10, iters = 1000, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
   uint64_t gt[n], ts[n];
@@ -59,9 +62,12 @@ int main() {
     fprintf(stderr, "pchase: error: cudaMallocHost failed\n");
     exit(2);
   }
+  
   std::iota(h_idx, h_idx + n, 0u);
   std::mt19937 rng(0);
+  std::uniform_int_distribution<int> jitter(0, 16000);
   for (j = 0; j < iters; j++) {
+    std::this_thread::sleep_for(std::chrono::nanoseconds(jitter(rng)));
     std::shuffle(h_idx, h_idx + n, rng);
     cudaMemcpy(d_idx, h_idx, n * sizeof *d_idx, cudaMemcpyHostToDevice);
     cudaMemset(flush, j, flushbytes);
