@@ -9,58 +9,61 @@
 #include <numeric>
 #include <random>
 #include <cassert>
-enum {n = 32, iters = 1000};
+enum { n = 8192, iters = 10, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
-  uint64_t gt, ts[n];
+  uint64_t gt[n], ts[n];
 };
-__global__ void f(int *a, Rec *g, uint64_t *gsum) {
+__global__ void f(uint32_t *a, Rec *g, uint64_t *gsum) {
   Rec l;
-  uint64_t ts[n], sum = 0;
-  int k = 0, tid, s;
-  reg_smid(r);
-  for (i = 0; i < NT; i++) {
-    reg_clock64(&ts[i]);
-    sum += a[i];
+  uint64_t t0, t1, sum = 0;
+  uint32_t x;
+  int i;
+  reg_smid(&l.smid);
+  reg_warpid(&l.warpid);
+#pragma unroll 1
+  for (i = 0; i < n; i++) {
+    reg_globaltimer(&l.gt[i]);
+    reg_clock64(&t0);
+    x = a[i * STRIDE];
+    sum += x;
+    reg_clock64(&t1);
+    l.ts[i] = t1 - t0;
   }
-  // copy to l to g with memcopy
-  // copy sum to gsum
+  memcpy(g, &l, sizeof l);
+  *gsum = sum;
 }
 int main(int argc, char **argv) {
-  int bl, *a, *a2, h[n];
-  size_t i, j;
-  Rec *r, *rjunk, hr[th];
+  uint32_t *a, *a2;
+  size_t i, j, flushbytes;
+  Rec hr, *r, *rjunk;
+  uint64_t *gsum, gt = 0;
+  char *flush;
   cudaDeviceProp prop;
   cudaGetDeviceProperties(&prop, 0);
-  assert(prop.warpSize == th);
-  assert(n == th);
-  cudaMalloc(&a, n * sizeof *a);
-  cudaMalloc(&a2, n * sizeof *a2);
-  cudaMalloc(&rjunk, th * sizeof *rjunk);
-  size_t flushbytes = 2 * (size_t)prop.l2CacheSize;
-  char *flush;
+  flushbytes = 2 * (size_t)prop.l2CacheSize;
+  cudaMalloc(&a, n * STRIDE * sizeof *a);
+  cudaMalloc(&a2, n * STRIDE * sizeof *a2);
+  cudaMalloc(&rjunk, sizeof *rjunk);
+  cudaMalloc(&r, sizeof *r);
+  cudaMalloc(&gsum, sizeof *gsum);
   cudaMalloc(&flush, flushbytes);
-  cudaMalloc(&r, th * sizeof *r);
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
-  bl = (n + th - 1) / th;
   for (j = 0; j < iters; j++) {
-    std::iota(h, h + n, 0);
-    std::shuffle(h, h + n, rng);
-    cudaMemcpy(a, h, n * sizeof *a, cudaMemcpyHostToDevice);
     cudaMemset(flush, j, flushbytes);
-    f<<<1, 1>>>(a2, rjunk);
-    f<<<1, 1>>>(a, r);
-    cudaMemcpy(hr, r, th * sizeof *r, cudaMemcpyDeviceToHost);
-    printf("%" PRIu32 " %" PRIu32 " %" PRIu64 " ", hr[0].smid, hr[0].warpid,
-           hr[0].gt);
-    for (i = 1; i < NT; i++)
-        printf("%" PRIu64 " ", hr[0].ts[i] - hr[0].ts[0]);
-    printf("\n");
+    f<<<1, 1>>>(a2, rjunk, gsum);
+    f<<<1, 1>>>(a, r, gsum);
+    cudaMemcpy(&hr, r, sizeof hr, cudaMemcpyDeviceToHost);
+    if (j == 0)
+      gt = hr.gt[0];
+    for (i = 0; i < n; i++)
+      printf("%" PRIu64 " %" PRIu64 "\n", hr.gt[i] - gt, hr.ts[i]);
   }
   cudaFree(flush);
   cudaFree(rjunk);
   cudaFree(a2);
   cudaFree(r);
   cudaFree(a);
+  cudaFree(gsum);
   return 0;
 }
