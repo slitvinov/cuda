@@ -36,7 +36,7 @@ __global__ void f(uint32_t *a, Rec *g, uint64_t *gsum) {
 int main(int argc, char **argv) {
   uint32_t *a, *a2;
   size_t i, j, flushbytes;
-  Rec hr, *r, *rjunk;
+  Rec hr, *r;
   uint64_t *gsum, gt = 0;
   char *flush;
   cudaDeviceProp prop;
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
   std::mt19937 rng(argv[1] ? atoi(argv[1]) : 0);
   for (j = 0; j < iters; j++) {
     cudaMemset(flush, j, flushbytes);
-    f<<<1, 1>>>(a2, rjunk, gsum);
+    f<<<1, 1>>>(a2, r, gsum);
     f<<<1, 1>>>(a, r, gsum);
     cudaMemcpy(&hr, r, sizeof hr, cudaMemcpyDeviceToHost);
     if (j == 0)
