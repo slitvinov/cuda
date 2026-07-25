@@ -7,16 +7,17 @@
 #include <random>
 
 #include "reg.h"
+#include "tick.h"
 enum { n = 1, iters = 100000, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
   uint64_t gt[n], ts[n];
 };
-__global__ void f(uint32_t *a, const uint32_t *idx, Rec *g, uint64_t *gsum) {
+__global__ void f(uint32_t *a, const uint32_t *idx, Rec *g) {
   __shared__ uint32_t sidx[n];
   Rec l;
   uint32_t smid, warpid, x, off;
-  uint64_t t0, t1, gt, i, sum = 0;
+  uint64_t t0, t1, gt, i;
   reg_smid(&smid);
   reg_warpid(&warpid);
   l.smid = smid;
@@ -29,17 +30,15 @@ __global__ void f(uint32_t *a, const uint32_t *idx, Rec *g, uint64_t *gsum) {
     reg_globaltimer(&gt);
     reg_clock64(&t0);
     x = a[off];
-    sum += x;
-    reg_clock64(&t1);
+    tick_clock64(x, &t1);
     l.gt[i] = gt;
     l.ts[i] = t1 - t0;
   }
   *g = l;
-  *gsum = sum;
 }
 int main() {
   uint32_t *a, *a2, *d_idx, h_idx[n];
-  uint64_t i, j, flushbytes, *gsum, gt = 0;
+  uint64_t i, j, flushbytes, gt = 0;
   Rec *hr, *r;
   char *flush;
   cudaDeviceProp prop;
@@ -52,7 +51,6 @@ int main() {
       cudaMalloc(&a2, n * STRIDE * sizeof *a2) != cudaSuccess ||
       cudaMalloc(&d_idx, n * sizeof *d_idx) != cudaSuccess ||
       cudaMalloc(&r, sizeof *r) != cudaSuccess ||
-      cudaMalloc(&gsum, sizeof *gsum) != cudaSuccess ||
       cudaMalloc(&flush, flushbytes) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMalloc failed\n");
     exit(2);
@@ -67,8 +65,8 @@ int main() {
     std::shuffle(h_idx, h_idx + n, rng);
     cudaMemcpy(d_idx, h_idx, n * sizeof *d_idx, cudaMemcpyHostToDevice);
     cudaMemset(flush, j, flushbytes);
-    f<<<1, 1>>>(a2, d_idx, r, gsum);
-    f<<<1, 1>>>(a, d_idx, r, gsum);
+    f<<<1, 1>>>(a2, d_idx, r);
+    f<<<1, 1>>>(a, d_idx, r);
     if (cudaGetLastError() != cudaSuccess ||
         cudaDeviceSynchronize() != cudaSuccess) {
       fprintf(stderr, "pchase: error: kernel launch failed\n");
@@ -86,7 +84,6 @@ int main() {
       cudaFree(d_idx) != cudaSuccess ||
       cudaFree(r) != cudaSuccess ||
       cudaFree(a) != cudaSuccess ||
-      cudaFree(gsum) != cudaSuccess ||
       cudaFreeHost(hr) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaFree failed\n");
     exit(2);
