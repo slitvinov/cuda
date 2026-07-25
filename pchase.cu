@@ -8,10 +8,11 @@
 #include <thread>
 #include <chrono>
 #include <time.h>
+#include <assert.h>
 
 #include "reg.h"
 #include "tick.h"
-enum { n = 1 << 10, iters = 1000, STRIDE = 32 };
+enum { n = 1 << 10, iters = 100000, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
   uint64_t gt[n], ts[n];
@@ -42,6 +43,7 @@ __global__ void f(uint32_t *a, const uint32_t *idx, Rec *g) {
 int main() {
   uint32_t *a, *a2, *d_idx, h_idx[n];
   uint64_t i, j, flushbytes, gt = 0;
+  uint32_t sm0 = 0, warp0 = 0;
   Rec *hr, *r;
   char *flush;
   cudaDeviceProp prop;
@@ -62,11 +64,10 @@ int main() {
     fprintf(stderr, "pchase: error: cudaMallocHost failed\n");
     exit(2);
   }
-  
   std::iota(h_idx, h_idx + n, 0u);
   std::mt19937 rng(0);
   std::uniform_int_distribution<int> jitter(0, 16000);
-  for (j = 0; j < iters; j++) {
+  for (j = 0; j < iters; ) {
     std::this_thread::sleep_for(std::chrono::nanoseconds(jitter(rng)));
     std::shuffle(h_idx, h_idx + n, rng);
     cudaMemcpy(d_idx, h_idx, n * sizeof *d_idx, cudaMemcpyHostToDevice);
@@ -79,11 +80,18 @@ int main() {
       exit(2);
     }
     cudaMemcpy(hr, r, sizeof *hr, cudaMemcpyDeviceToHost);
-    if (j == 0)
+    if (j == 0) {
       gt = hr->gt[0];
-    for (i = 0; i < n; i++)
-      printf("%" PRIu64 " %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
-             hr->gt[i] - gt, hr->ts[i]);
+      sm0 = hr->smid;
+      warp0 = hr->warpid;
+    }
+    assert(hr->smid == sm0);
+    if (hr->warpid == warp0) {
+      for (i = 0; i < n; i++)
+	printf("%" PRIu64 " %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
+	       hr->gt[i] - gt, hr->ts[i]);
+      j++;
+    }
   }
   if (cudaFree(flush) != cudaSuccess ||
       cudaFree(a2) != cudaSuccess ||
