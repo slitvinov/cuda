@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <numeric>
 #include <random>
-enum { n = 1u << 10, iters = 100, STRIDE = 32 };
+enum { n = 1u << 10, iters = 100000, STRIDE = 32 };
 struct Rec {
   uint32_t smid, warpid;
   uint64_t gt[n], ts[n];
@@ -56,8 +56,8 @@ int main() {
     fprintf(stderr, "pchase: error: cudaMalloc failed\n");
     exit(2);
   }
-  if ((hr = (Rec *)malloc(sizeof *hr)) == NULL) {
-    fprintf(stderr, "pchase: error: malloc failed\n");
+  if (cudaMallocHost((void **)&hr, sizeof *hr) != cudaSuccess) {
+    fprintf(stderr, "pchase: error: cudaMallocHost failed\n");
     exit(2);
   }
   std::iota(h_idx, h_idx + n, 0u);
@@ -85,9 +85,9 @@ int main() {
       cudaFree(d_idx) != cudaSuccess ||
       cudaFree(r) != cudaSuccess ||
       cudaFree(a) != cudaSuccess ||
-      cudaFree(gsum) != cudaSuccess) {
+      cudaFree(gsum) != cudaSuccess ||
+      cudaFreeHost(hr) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaFree failed\n");
     exit(2);
   }
-  free(hr);
 }
