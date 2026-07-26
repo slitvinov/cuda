@@ -139,26 +139,26 @@ int main(int argc, char **argv) {
       fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
       exit(2);
     }
-    if (smid != ha.target)
-      continue;
-    if (cudaMemcpy(&warpid, g_warpid, sizeof warpid,
-                   cudaMemcpyDeviceToHost) != cudaSuccess ||
-        cudaMemcpy(h_gt, g_gt, ha.n * sizeof *h_gt,
-                   cudaMemcpyDeviceToHost) != cudaSuccess ||
-        cudaMemcpy(h_ts, g_ts, ha.n * sizeof *h_ts,
-                   cudaMemcpyDeviceToHost) != cudaSuccess) {
-      fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
-      exit(2);
-    }
-    if (j == 0) {
-      gt = h_gt[0];
-      warp0 = warpid;
-    }
-    if (warpid == warp0) {
-      for (i = 0; i < ha.n; i++)
-        printf("%d %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
-               h_gt[i] - gt, h_ts[i]);
-      j++;
+    if (smid == ha.target) {
+      if (cudaMemcpy(&warpid, g_warpid, sizeof warpid,
+                     cudaMemcpyDeviceToHost) != cudaSuccess ||
+          cudaMemcpy(h_gt, g_gt, ha.n * sizeof *h_gt,
+                     cudaMemcpyDeviceToHost) != cudaSuccess ||
+          cudaMemcpy(h_ts, g_ts, ha.n * sizeof *h_ts,
+                     cudaMemcpyDeviceToHost) != cudaSuccess) {
+        fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
+        exit(2);
+      }
+      if (j == 0) {
+        gt = h_gt[0];
+        warp0 = warpid;
+      }
+      if (warpid == warp0) {
+        for (i = 0; i < ha.n; i++)
+          printf("%d %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
+                 h_gt[i] - gt, h_ts[i]);
+        j++;
+      }
     }
   }
   if (cudaFree(a) != cudaSuccess ||
