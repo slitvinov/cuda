@@ -12,11 +12,6 @@
 #include "reg.h"
 #include "tick.h"
 #include "arg.h"
-static __device__ __forceinline__ uint64_t load_cv_u64(const uint64_t *a) {
-  uint64_t v;
-  asm volatile("ld.global.cv.u64 %0, [%1];" : "=l"(v) : "l"(a) : "memory");
-  return v;
-}
 struct Args {
   int n, stride;
   uint32_t target;
@@ -37,7 +32,7 @@ __global__ void f(uint64_t *a, const uint32_t *idx, uint64_t *g_gt,
     off = idx[i] * (uint32_t)C.stride;
     reg_globaltimer(&gt);
     reg_clock64(&t0);
-    x = load_cv_u64(a + off);
+    x = a[off];
     tick_clock64((uint32_t)x, &t1);
     g_gt[i] = gt;
     g_ts[i] = t1 - t0;
@@ -64,6 +59,8 @@ int main(int argc, char **argv) {
   uint64_t *a, *g_gt, *g_ts, *h_gt, *h_ts, gt = 0;
   uint32_t *d_idx, *g_smid, *g_warpid, *h_idx, warp0 = 0, smid, warpid;
   int *claim, K, iters = -1, sm = -1, i, j;
+  size_t flushbytes;
+  char *flush;
   cudaDeviceProp prop;
   Args ha = {-1, -1, 0};
   std::mt19937 rng(0);
@@ -92,6 +89,7 @@ int main(int argc, char **argv) {
     exit(2);
   }
   K = 4 * prop.multiProcessorCount;
+  flushbytes = 2 * (size_t)prop.l2CacheSize;
   if (ha.target >= (uint32_t)prop.multiProcessorCount) {
     fprintf(stderr, "pchase: error: target SM %u >= %d\n", ha.target,
             prop.multiProcessorCount);
@@ -103,7 +101,8 @@ int main(int argc, char **argv) {
       cudaMalloc(&g_ts, ha.n * sizeof *g_ts) != cudaSuccess ||
       cudaMalloc(&g_smid, sizeof *g_smid) != cudaSuccess ||
       cudaMalloc(&g_warpid, sizeof *g_warpid) != cudaSuccess ||
-      cudaMalloc(&claim, sizeof *claim) != cudaSuccess) {
+      cudaMalloc(&claim, sizeof *claim) != cudaSuccess ||
+      cudaMalloc(&flush, flushbytes) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMalloc failed\n");
     exit(2);
   }
@@ -123,6 +122,7 @@ int main(int argc, char **argv) {
     std::shuffle(h_idx, h_idx + ha.n, rng);
     if (cudaMemcpy(d_idx, h_idx, ha.n * sizeof *d_idx,
                    cudaMemcpyHostToDevice) != cudaSuccess ||
+        cudaMemset(flush, j, flushbytes) != cudaSuccess ||
         cudaMemset(claim, 0, sizeof *claim) != cudaSuccess ||
         cudaMemset(g_smid, 0xff, sizeof *g_smid) != cudaSuccess) {
       fprintf(stderr, "pchase: error: setup failed\n");
@@ -162,6 +162,7 @@ int main(int argc, char **argv) {
     }
   }
   if (cudaFree(a) != cudaSuccess ||
+      cudaFree(flush) != cudaSuccess ||
       cudaFree(d_idx) != cudaSuccess ||
       cudaFree(g_gt) != cudaSuccess ||
       cudaFree(g_ts) != cudaSuccess ||
