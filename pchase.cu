@@ -45,7 +45,8 @@ __global__ void f(uint64_t *a, const uint32_t *idx, uint64_t *g_gt,
 }
 char *argv0;
 static void usage(void) {
-  fprintf(stderr, "usage: %s smid n iters stride\n", argv0);
+  fprintf(stderr, "usage: %s [-s smid] [-n lines] [-i iters] [-w stride]\n",
+          argv0);
   exit(2);
 }
 static int argint(const char *s) {
@@ -60,22 +61,29 @@ static int argint(const char *s) {
 int main(int argc, char **argv) {
   uint64_t *a, *g_gt, *g_ts, *h_gt, *h_ts, gt = 0;
   uint32_t *d_idx, *g_smid, *g_warpid, *h_idx, target, warp0 = 0, smid, warpid;
-  int *claim, K, n, iters, stride, i, j;
+  int *claim, K, n = -1, iters = -1, stride = -1, sm = -1, i, j;
   cudaDeviceProp prop;
   std::mt19937 rng(0);
   std::uniform_int_distribution<int> jitter(0, 16000);
   ARGBEGIN {
+  case 's':
+    sm = argint(EARGF(usage()));
+    break;
+  case 'n':
+    n = argint(EARGF(usage()));
+    break;
+  case 'i':
+    iters = argint(EARGF(usage()));
+    break;
+  case 'w':
+    stride = argint(EARGF(usage()));
+    break;
   default:
     usage();
   } ARGEND;
-  if (argc != 4)
+  if (sm < 0 || n < 1 || iters < 1 || stride < 1)
     usage();
-  target = (uint32_t)argint(argv[0]);
-  n = argint(argv[1]);
-  iters = argint(argv[2]);
-  stride = argint(argv[3]);
-  if (n < 1 || iters < 1 || stride < 1)
-    usage();
+  target = (uint32_t)sm;
   if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaGetDeviceProperties failed\n");
     exit(2);
