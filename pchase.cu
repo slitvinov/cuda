@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <algorithm>
 #include <numeric>
 #include <random>
@@ -49,8 +50,10 @@ static void usage(void) {
 }
 static int argint(const char *s) {
   char *e;
-  long v = strtol(s, &e, 0);
-  if (*s == '\0' || *e != '\0')
+  long v;
+  errno = 0;
+  v = strtol(s, &e, 0);
+  if (*s == '\0' || *e != '\0' || errno != 0)
     usage();
   return (int)v;
 }
@@ -108,9 +111,13 @@ int main(int argc, char **argv) {
   for (j = 0; j < iters;) {
     std::this_thread::sleep_for(std::chrono::nanoseconds(jitter(rng)));
     std::shuffle(h_idx, h_idx + n, rng);
-    cudaMemcpy(d_idx, h_idx, n * sizeof *d_idx, cudaMemcpyHostToDevice);
-    cudaMemset(claim, 0, sizeof *claim);
-    cudaMemset(g_smid, 0xff, sizeof *g_smid);
+    if (cudaMemcpy(d_idx, h_idx, n * sizeof *d_idx,
+                   cudaMemcpyHostToDevice) != cudaSuccess ||
+        cudaMemset(claim, 0, sizeof *claim) != cudaSuccess ||
+        cudaMemset(g_smid, 0xff, sizeof *g_smid) != cudaSuccess) {
+      fprintf(stderr, "pchase: error: setup failed\n");
+      exit(2);
+    }
     f<<<K, 1, n * sizeof(uint32_t)>>>(a, d_idx, g_gt, g_ts, g_smid, g_warpid, n,
                                       stride, target, claim);
     if (cudaGetLastError() != cudaSuccess ||
@@ -118,12 +125,22 @@ int main(int argc, char **argv) {
       fprintf(stderr, "pchase: error: kernel launch failed\n");
       exit(2);
     }
-    cudaMemcpy(&smid, g_smid, sizeof smid, cudaMemcpyDeviceToHost);
+    if (cudaMemcpy(&smid, g_smid, sizeof smid,
+                   cudaMemcpyDeviceToHost) != cudaSuccess) {
+      fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
+      exit(2);
+    }
     if (smid != target)
       continue;
-    cudaMemcpy(&warpid, g_warpid, sizeof warpid, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_gt, g_gt, n * sizeof *h_gt, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_ts, g_ts, n * sizeof *h_ts, cudaMemcpyDeviceToHost);
+    if (cudaMemcpy(&warpid, g_warpid, sizeof warpid,
+                   cudaMemcpyDeviceToHost) != cudaSuccess ||
+        cudaMemcpy(h_gt, g_gt, n * sizeof *h_gt,
+                   cudaMemcpyDeviceToHost) != cudaSuccess ||
+        cudaMemcpy(h_ts, g_ts, n * sizeof *h_ts,
+                   cudaMemcpyDeviceToHost) != cudaSuccess) {
+      fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
+      exit(2);
+    }
     if (j == 0) {
       gt = h_gt[0];
       warp0 = warpid;
