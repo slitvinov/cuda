@@ -42,7 +42,8 @@ __global__ void f(uint64_t *a, const uint32_t *idx, uint64_t *g_gt,
 }
 char *argv0;
 static void usage(void) {
-  fprintf(stderr, "usage: %s [-s smid] [-n lines] [-i iters] [-w stride]\n",
+  fprintf(stderr,
+          "usage: %s [-s smid] [-n lines] [-i iters] [-w stride] [-b base]\n",
           argv0);
   exit(2);
 }
@@ -60,7 +61,9 @@ int main(int argc, char **argv) {
   uint32_t *d_idx, *g_smid, *g_warpid, *h_idx, warp0 = 0, smid, warpid;
   int *claim, K, iters = -1, sm = -1, i, j;
   size_t flushbytes;
-  char *flush;
+  char *flush, *base = 0, path[4096];
+  FILE *raw = 0, *m;
+  uint16_t bo = 1;
   cudaDeviceProp prop;
   Args ha = {-1, -1, 0};
   std::mt19937 rng(0);
@@ -78,10 +81,13 @@ int main(int argc, char **argv) {
   case 'w':
     ha.stride = argint(EARGF(usage()));
     break;
+  case 'b':
+    base = EARGF(usage());
+    break;
   default:
     usage();
   } ARGEND;
-  if (sm < 0 || ha.n < 1 || iters < 1 || ha.stride < 1)
+  if (sm < 0 || ha.n < 1 || iters < 1 || ha.stride < 1 || !base)
     usage();
   ha.target = (uint32_t)sm;
   if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess) {
@@ -114,6 +120,11 @@ int main(int argc, char **argv) {
   }
   if (cudaMemcpyToSymbol(C, &ha, sizeof ha) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMemcpyToSymbol failed\n");
+    exit(2);
+  }
+  snprintf(path, sizeof path, "%s.raw", base);
+  if (!(raw = fopen(path, "wb"))) {
+    fprintf(stderr, "pchase: error: cannot open %s\n", path);
     exit(2);
   }
   std::iota(h_idx, h_idx + ha.n, 0u);
@@ -154,13 +165,23 @@ int main(int argc, char **argv) {
         warp0 = warpid;
       }
       if (warpid == warp0) {
-        for (i = 0; i < ha.n; i++)
-          printf("%d %" PRIu32 " %" PRIu64 " %" PRIu64 "\n", i, h_idx[i],
-                 h_gt[i] - gt, h_ts[i]);
+        for (i = 0; i < ha.n; i++) {
+          uint64_t row[3] = {h_idx[i], h_gt[i] - gt, h_ts[i]};
+          fwrite(row, sizeof row, 1, raw);
+        }
         j++;
       }
     }
   }
+  fclose(raw);
+  snprintf(path, sizeof path, "%s.meta", base);
+  if (!(m = fopen(path, "w"))) {
+    fprintf(stderr, "pchase: error: cannot open %s\n", path);
+    exit(2);
+  }
+  fprintf(m, "rows %ld\nendian %s\nline u64\ngt u64\nlat u64\n",
+          (long)iters * ha.n, *(char *)&bo ? "little" : "big");
+  fclose(m);
   if (cudaFree(a) != cudaSuccess ||
       cudaFree(flush) != cudaSuccess ||
       cudaFree(d_idx) != cudaSuccess ||
