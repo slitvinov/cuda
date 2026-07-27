@@ -32,7 +32,7 @@ __global__ void f(uint64_t *a, const uint32_t *idx, uint64_t *g_gt,
     off = idx[i] * (uint32_t)C.stride;
     reg_globaltimer(&gt);
     reg_clock64(&t0);
-    x = a[off];
+    x = __ldcg(&a[off]);
     tick_clock64((uint32_t)x, &t1);
     g_gt[i] = gt;
     g_ts[i] = t1 - t0;

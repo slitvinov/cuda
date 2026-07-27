@@ -13,8 +13,8 @@ n=${h%%.*}
 case $1 in
   -f)
     shift
-    for f; do printf '%s\n' "$f"; done > "$aux"
-    rsync --files-from="$aux" "$h:/tmp/" .
+    while [ $# -gt 1 ]; do printf '%s\n' "$1"; shift; done > "$aux"
+    rsync --files-from="$aux" "$h:/tmp/" "$1"
     exit
     ;;
 esac
