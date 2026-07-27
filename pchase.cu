@@ -42,8 +42,7 @@ static const struct Col {
 };
 enum { NCOL = sizeof cols / sizeof *cols };
 __constant__ Args C;
-__global__ void f(uint64_t *a, const uint32_t *idx, Rec *g, uint32_t iter,
-                  int *claim) {
+__global__ void kernel(uint64_t *a, const uint32_t *idx, Rec *g, int *claim) {
   uint32_t smid, warpid, off, id;
   uint64_t t0, t1, x;
   int i;
@@ -53,7 +52,6 @@ __global__ void f(uint64_t *a, const uint32_t *idx, Rec *g, uint32_t iter,
   reg_warpid(&warpid);
   g->smid = smid;
   g->warpid = warpid;
-  g->iter = iter;
 #pragma unroll 1
   for (i = 0; i < C.n; i++) {
     id = idx[i];
@@ -87,7 +85,8 @@ int main(int argc, char **argv) {
   Rec *g_rec;
   const void *src[NCOL];
   uint32_t *d_idx, *h_idx, warp0 = 0;
-  int *claim, K, iters = -1, sm = -1, i, j;
+  long iters = -1;
+  int *claim, K, sm = -1, i, j;
   size_t flushbytes, c, off, bufsz;
   char *flush, *base = 0, path[4096];
   FILE *raw = 0, *m;
@@ -183,7 +182,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "pchase: error: setup failed\n");
       exit(2);
     }
-    f<<<K, 1>>>(a, d_idx, g_rec, (uint32_t)j, claim);
+    kernel<<<K, 1>>>(a, d_idx, g_rec, claim);
     if (cudaGetLastError() != cudaSuccess ||
         cudaDeviceSynchronize() != cudaSuccess) {
       fprintf(stderr, "pchase: error: kernel launch failed\n");
@@ -195,6 +194,7 @@ int main(int argc, char **argv) {
         warp0 = g_rec->warpid;
       }
       if (g_rec->warpid == warp0) {
+        g_rec->iter = (uint32_t)j;
         for (i = 0; i < ha.n; i++)
           g_rec->clock64[i] -= clock0;
         for (i = 0; i < ha.n; i++)
@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "pchase: error: cannot open %s\n", path);
     exit(2);
   }
-  fprintf(m, "rows %ld\nendian %s\n", (long)iters * ha.n,
+  fprintf(m, "rows %ld\nendian %s\n", iters * ha.n,
           *(char *)&bo ? "little" : "big");
   for (c = 0; c < NCOL; c++)
     fprintf(m, "%s u%zu\n", cols[c].name, cols[c].size);
