@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <algorithm>
@@ -17,22 +18,40 @@ struct Args {
   uint32_t target;
 };
 struct Rec {
-  uint64_t id, clock64, lat;
+  uint64_t *id, *clock64, *lat;
   uint32_t smid, warpid;
 };
+#define ROWFIELDS                                                              \
+  X(uint64_t, id)                                                              \
+  X(uint64_t, clock64)                                                         \
+  X(uint64_t, lat)                                                             \
+  X(uint32_t, smid)                                                            \
+  X(uint32_t, warpid)                                                          \
+  X(uint32_t, iter)
+struct Row {
+#define X(t, nm) t nm;
+  ROWFIELDS
+#undef X
+};
+static const struct {
+  const char *name;
+  size_t off, size;
+} cols[] = {
+#define X(t, nm) {#nm, offsetof(Row, nm), sizeof(t)},
+    ROWFIELDS
+#undef X
+};
 __constant__ Args C;
-__global__ void f(uint64_t *a, const uint32_t *idx, Rec *g_rec,
-                  uint32_t *g_smid, uint32_t *g_warpid, int *claim) {
+__global__ void f(uint64_t *a, const uint32_t *idx, Rec *g, int *claim) {
   uint32_t smid, warpid, off, id;
   uint64_t t0, t1, x;
-  Rec r;
   int i;
   reg_smid(&smid);
   if (smid != C.target || atomicAdd(claim, 1) != 0)
     return;
   reg_warpid(&warpid);
-  r.smid = smid;
-  r.warpid = warpid;
+  g->smid = smid;
+  g->warpid = warpid;
 #pragma unroll 1
   for (i = 0; i < C.n; i++) {
     id = idx[i];
@@ -40,13 +59,10 @@ __global__ void f(uint64_t *a, const uint32_t *idx, Rec *g_rec,
     reg_clock64(&t0);
     x = __ldcg(&a[off]);
     tick_clock64((uint32_t)x, &t1);
-    r.line = id;
-    r.clk = t0;
-    r.lat = t1 - t0;
-    g_rec[i] = r;
+    g->id[i] = id;
+    g->clock64[i] = t0;
+    g->lat[i] = t1 - t0;
   }
-  *g_smid = smid;
-  *g_warpid = warpid;
 }
 char *argv0;
 static void usage(void) {
@@ -65,11 +81,13 @@ static int argint(const char *s) {
   return (int)v;
 }
 int main(int argc, char **argv) {
-  uint64_t *a, clk0 = 0;
-  Rec *g_rec, *h_rec;
-  uint32_t *d_idx, *g_smid, *g_warpid, *h_idx, warp0 = 0, smid, warpid;
+  uint64_t *a, clock0 = 0;
+  uint64_t *d_id, *d_clock64, *d_lat, *h_id, *h_clock64, *h_lat;
+  Rec rec, *g_rec;
+  Row row;
+  uint32_t *d_idx, *h_idx, warp0 = 0, smid, warpid;
   int *claim, K, iters = -1, sm = -1, i, j;
-  size_t flushbytes;
+  size_t flushbytes, c;
   char *flush, *base = 0, path[4096];
   FILE *raw = 0, *m;
   uint16_t bo = 1;
@@ -112,20 +130,27 @@ int main(int argc, char **argv) {
   }
   if (cudaMalloc(&a, (size_t)ha.n * ha.stride * sizeof *a) != cudaSuccess ||
       cudaMalloc(&d_idx, ha.n * sizeof *d_idx) != cudaSuccess ||
-      cudaMalloc(&g_rec, ha.n * sizeof *g_rec) != cudaSuccess ||
-      cudaMalloc(&g_smid, sizeof *g_smid) != cudaSuccess ||
-      cudaMalloc(&g_warpid, sizeof *g_warpid) != cudaSuccess ||
+      cudaMalloc(&d_id, ha.n * sizeof *d_id) != cudaSuccess ||
+      cudaMalloc(&d_clock64, ha.n * sizeof *d_clock64) != cudaSuccess ||
+      cudaMalloc(&d_lat, ha.n * sizeof *d_lat) != cudaSuccess ||
+      cudaMalloc(&g_rec, sizeof *g_rec) != cudaSuccess ||
       cudaMalloc(&claim, sizeof *claim) != cudaSuccess ||
       cudaMalloc(&flush, flushbytes) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMalloc failed\n");
     exit(2);
   }
   if (cudaMallocHost((void **)&h_idx, ha.n * sizeof *h_idx) != cudaSuccess ||
-      cudaMallocHost((void **)&h_rec, ha.n * sizeof *h_rec) != cudaSuccess) {
+      cudaMallocHost((void **)&h_id, ha.n * sizeof *h_id) != cudaSuccess ||
+      cudaMallocHost((void **)&h_clock64, ha.n * sizeof *h_clock64) != cudaSuccess ||
+      cudaMallocHost((void **)&h_lat, ha.n * sizeof *h_lat) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMallocHost failed\n");
     exit(2);
   }
-  if (cudaMemcpyToSymbol(C, &ha, sizeof ha) != cudaSuccess) {
+  rec.id = d_id;
+  rec.clock64 = d_clock64;
+  rec.lat = d_lat;
+  if (cudaMemcpyToSymbol(C, &ha, sizeof ha) != cudaSuccess ||
+      cudaMemcpy(g_rec, &rec, sizeof rec, cudaMemcpyHostToDevice) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMemcpyToSymbol failed\n");
     exit(2);
   }
@@ -142,49 +167,50 @@ int main(int argc, char **argv) {
                    cudaMemcpyHostToDevice) != cudaSuccess ||
         cudaMemset(flush, j, flushbytes) != cudaSuccess ||
         cudaMemset(claim, 0, sizeof *claim) != cudaSuccess ||
-        cudaMemset(g_smid, 0xff, sizeof *g_smid) != cudaSuccess) {
+        cudaMemset(&g_rec->smid, 0xff, sizeof rec.smid) != cudaSuccess) {
       fprintf(stderr, "pchase: error: setup failed\n");
       exit(2);
     }
-    f<<<K, 1>>>(a, d_idx, g_rec, g_smid, g_warpid, claim);
+    f<<<K, 1>>>(a, d_idx, g_rec, claim);
     if (cudaGetLastError() != cudaSuccess ||
         cudaDeviceSynchronize() != cudaSuccess) {
       fprintf(stderr, "pchase: error: kernel launch failed\n");
       exit(2);
     }
-    if (cudaMemcpy(&smid, g_smid, sizeof smid,
+    if (cudaMemcpy(&smid, &g_rec->smid, sizeof smid,
                    cudaMemcpyDeviceToHost) != cudaSuccess) {
       fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
       exit(2);
     }
     if (smid == ha.target) {
-      if (cudaMemcpy(&warpid, g_warpid, sizeof warpid,
+      if (cudaMemcpy(&warpid, &g_rec->warpid, sizeof warpid,
                      cudaMemcpyDeviceToHost) != cudaSuccess ||
-          cudaMemcpy(h_rec, g_rec, ha.n * sizeof *h_rec,
+          cudaMemcpy(h_id, d_id, ha.n * sizeof *h_id,
+                     cudaMemcpyDeviceToHost) != cudaSuccess ||
+          cudaMemcpy(h_clock64, d_clock64, ha.n * sizeof *h_clock64,
+                     cudaMemcpyDeviceToHost) != cudaSuccess ||
+          cudaMemcpy(h_lat, d_lat, ha.n * sizeof *h_lat,
                      cudaMemcpyDeviceToHost) != cudaSuccess) {
         fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
         exit(2);
       }
       if (j == 0) {
-        clk0 = h_rec[0].clk;
+        clock0 = h_clock64[0];
         warp0 = warpid;
       }
       if (warpid == warp0) {
+        row.smid = smid;
+        row.warpid = warpid;
+        row.iter = (uint32_t)j;
         for (i = 0; i < ha.n; i++) {
-          uint64_t clk = h_rec[i].clk - clk0;
-          if (h_rec[i].smid != ha.target || h_rec[i].warpid != warp0) {
-            fprintf(stderr, "pchase: error: record smid %u warpid %u != %u %u\n",
-                    h_rec[i].smid, h_rec[i].warpid, ha.target, warp0);
-            exit(2);
-          }
-          if (fwrite(&h_rec[i].line, sizeof h_rec[i].line, 1, raw) != 1 ||
-              fwrite(&clk, sizeof clk, 1, raw) != 1 ||
-              fwrite(&h_rec[i].lat, sizeof h_rec[i].lat, 1, raw) != 1 ||
-              fwrite(&h_rec[i].smid, sizeof h_rec[i].smid, 1, raw) != 1 ||
-              fwrite(&h_rec[i].warpid, sizeof h_rec[i].warpid, 1, raw) != 1) {
-            fprintf(stderr, "pchase: error: fwrite failed\n");
-            exit(2);
-          }
+          row.id = h_id[i];
+          row.clock64 = h_clock64[i] - clock0;
+          row.lat = h_lat[i];
+          for (c = 0; c < sizeof cols / sizeof *cols; c++)
+            if (fwrite((char *)&row + cols[c].off, cols[c].size, 1, raw) != 1) {
+              fprintf(stderr, "pchase: error: fwrite failed\n");
+              exit(2);
+            }
         }
         j++;
       }
@@ -196,18 +222,23 @@ int main(int argc, char **argv) {
     fprintf(stderr, "pchase: error: cannot open %s\n", path);
     exit(2);
   }
-  fprintf(m, "rows %ld\nendian %s\nline u64\nclk u64\nlat u64\nsmid u32\nwarpid u32\n",
-          (long)iters * ha.n, *(char *)&bo ? "little" : "big");
+  fprintf(m, "rows %ld\nendian %s\n", (long)iters * ha.n,
+          *(char *)&bo ? "little" : "big");
+  for (c = 0; c < sizeof cols / sizeof *cols; c++)
+    fprintf(m, "%s u%zu\n", cols[c].name, cols[c].size);
   fclose(m);
   if (cudaFree(a) != cudaSuccess ||
       cudaFree(flush) != cudaSuccess ||
       cudaFree(d_idx) != cudaSuccess ||
+      cudaFree(d_id) != cudaSuccess ||
+      cudaFree(d_clock64) != cudaSuccess ||
+      cudaFree(d_lat) != cudaSuccess ||
       cudaFree(g_rec) != cudaSuccess ||
-      cudaFree(g_smid) != cudaSuccess ||
-      cudaFree(g_warpid) != cudaSuccess ||
       cudaFree(claim) != cudaSuccess ||
       cudaFreeHost(h_idx) != cudaSuccess ||
-      cudaFreeHost(h_rec) != cudaSuccess) {
+      cudaFreeHost(h_id) != cudaSuccess ||
+      cudaFreeHost(h_clock64) != cudaSuccess ||
+      cudaFreeHost(h_lat) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaFree failed\n");
     exit(2);
   }
