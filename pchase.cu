@@ -83,8 +83,8 @@ static int argint(const char *s) {
   return (int)v;
 }
 int main(int argc, char **argv) {
-  uint64_t *a, clock0 = 0, *d_buf, *h_buf, *h_id, *h_clock64, *h_lat;
-  Rec rec, back, *g_rec;
+  uint64_t *a, clock0 = 0, *buf;
+  Rec *g_rec;
   const void *src[NCOL];
   uint32_t *d_idx, *h_idx, warp0 = 0;
   int *claim, K, iters = -1, sm = -1, i, j;
@@ -135,22 +135,20 @@ int main(int argc, char **argv) {
 #undef X
   if (cudaMalloc(&a, (size_t)ha.n * ha.stride * sizeof *a) != cudaSuccess ||
       cudaMalloc(&d_idx, ha.n * sizeof *d_idx) != cudaSuccess ||
-      cudaMalloc(&d_buf, bufsz) != cudaSuccess ||
-      cudaMalloc(&g_rec, sizeof *g_rec) != cudaSuccess ||
       cudaMalloc(&claim, sizeof *claim) != cudaSuccess ||
-      cudaMalloc(&flush, flushbytes) != cudaSuccess) {
+      cudaMalloc(&flush, flushbytes) != cudaSuccess ||
+      cudaMallocManaged(&g_rec, sizeof *g_rec) != cudaSuccess ||
+      cudaMallocManaged(&buf, bufsz) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMalloc failed\n");
     exit(2);
   }
-  if (cudaMallocHost((void **)&h_idx, ha.n * sizeof *h_idx) != cudaSuccess ||
-      cudaMallocHost((void **)&h_buf, bufsz) != cudaSuccess) {
+  if (cudaMallocHost((void **)&h_idx, ha.n * sizeof *h_idx) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMallocHost failed\n");
     exit(2);
   }
   off = 0;
 #define SLICE1(t, nm)                                                          \
-  rec.nm = (t *)((char *)d_buf + off);                                         \
-  h_##nm = (t *)((char *)h_buf + off);                                         \
+  g_rec->nm = (t *)((char *)buf + off);                                        \
   off += (size_t)ha.n * sizeof(t);
 #define SLICE0(t, nm)
 #define X(t, nm, arr) SLICE##arr(t, nm)
@@ -159,13 +157,12 @@ int main(int argc, char **argv) {
 #undef SLICE0
 #undef SLICE1
   c = 0;
-#define SRC1(nm) h_##nm
-#define SRC0(nm) &back.nm
+#define SRC1(nm) g_rec->nm
+#define SRC0(nm) &g_rec->nm
 #define X(t, nm, arr) src[c++] = SRC##arr(nm);
   FIELDS
 #undef X
-  if (cudaMemcpyToSymbol(C, &ha, sizeof ha) != cudaSuccess ||
-      cudaMemcpy(g_rec, &rec, sizeof rec, cudaMemcpyHostToDevice) != cudaSuccess) {
+  if (cudaMemcpyToSymbol(C, &ha, sizeof ha) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaMemcpyToSymbol failed\n");
     exit(2);
   }
@@ -178,11 +175,11 @@ int main(int argc, char **argv) {
   for (j = 0; j < iters;) {
     std::this_thread::sleep_for(std::chrono::nanoseconds(jitter(rng)));
     std::shuffle(h_idx, h_idx + ha.n, rng);
+    g_rec->smid = 0xffffffffu;
     if (cudaMemcpy(d_idx, h_idx, ha.n * sizeof *d_idx,
                    cudaMemcpyHostToDevice) != cudaSuccess ||
         cudaMemset(flush, j, flushbytes) != cudaSuccess ||
-        cudaMemset(claim, 0, sizeof *claim) != cudaSuccess ||
-        cudaMemset(&g_rec->smid, 0xff, sizeof back.smid) != cudaSuccess) {
+        cudaMemset(claim, 0, sizeof *claim) != cudaSuccess) {
       fprintf(stderr, "pchase: error: setup failed\n");
       exit(2);
     }
@@ -192,24 +189,14 @@ int main(int argc, char **argv) {
       fprintf(stderr, "pchase: error: kernel launch failed\n");
       exit(2);
     }
-    if (cudaMemcpy(&back, g_rec, sizeof back,
-                   cudaMemcpyDeviceToHost) != cudaSuccess) {
-      fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
-      exit(2);
-    }
-    if (back.smid == ha.target) {
-      if (cudaMemcpy(h_buf, d_buf, bufsz,
-                     cudaMemcpyDeviceToHost) != cudaSuccess) {
-        fprintf(stderr, "pchase: error: cudaMemcpy failed\n");
-        exit(2);
-      }
+    if (g_rec->smid == ha.target) {
       if (j == 0) {
-        clock0 = h_clock64[0];
-        warp0 = back.warpid;
+        clock0 = g_rec->clock64[0];
+        warp0 = g_rec->warpid;
       }
-      if (back.warpid == warp0) {
+      if (g_rec->warpid == warp0) {
         for (i = 0; i < ha.n; i++)
-          h_clock64[i] -= clock0;
+          g_rec->clock64[i] -= clock0;
         for (i = 0; i < ha.n; i++)
           for (c = 0; c < NCOL; c++)
             if (fwrite((const char *)src[c] +
@@ -236,11 +223,10 @@ int main(int argc, char **argv) {
   if (cudaFree(a) != cudaSuccess ||
       cudaFree(flush) != cudaSuccess ||
       cudaFree(d_idx) != cudaSuccess ||
-      cudaFree(d_buf) != cudaSuccess ||
+      cudaFree(buf) != cudaSuccess ||
       cudaFree(g_rec) != cudaSuccess ||
       cudaFree(claim) != cudaSuccess ||
-      cudaFreeHost(h_idx) != cudaSuccess ||
-      cudaFreeHost(h_buf) != cudaSuccess) {
+      cudaFreeHost(h_idx) != cudaSuccess) {
     fprintf(stderr, "pchase: error: cudaFree failed\n");
     exit(2);
   }
