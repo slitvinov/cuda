@@ -20,6 +20,7 @@ struct Args {
 #define FIELDS                                                                 \
   X(uint64_t, id, 1)                                                           \
   X(uint64_t, clock64, 1)                                                      \
+  X(uint64_t, globaltimer, 1)                                                  \
   X(uint64_t, lat, 1)                                                          \
   X(uint32_t, smid, 0)                                                         \
   X(uint32_t, warpid, 0)                                                       \
@@ -44,7 +45,7 @@ enum { NCOL = sizeof cols / sizeof *cols };
 __constant__ Args C;
 __global__ void kernel(uint64_t *a, const uint32_t *idx, Rec *g, int *claim) {
   uint32_t smid, warpid, off, id;
-  uint64_t t0, t1, x;
+  uint64_t t0, t1, x, gt;
   int i;
   reg_smid(&smid);
   if (smid != C.target || atomicAdd(claim, 1) != 0)
@@ -56,11 +57,13 @@ __global__ void kernel(uint64_t *a, const uint32_t *idx, Rec *g, int *claim) {
   for (i = 0; i < C.n; i++) {
     id = idx[i];
     off = id * (uint32_t)C.stride;
+    reg_globaltimer(&gt);
     reg_clock64(&t0);
     x = __ldcg(&a[off]);
     tick_clock64((uint32_t)x, &t1);
     g->id[i] = id;
     g->clock64[i] = t0;
+    g->globaltimer[i] = gt;
     g->lat[i] = t1 - t0;
   }
 }
