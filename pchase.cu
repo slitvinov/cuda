@@ -22,7 +22,6 @@ struct Args {
   X(uint64_t, clock64, 1)                                                      \
   X(uint64_t, globaltimer, 1)                                                  \
   X(uint64_t, lat, 1)                                                          \
-  X(uint32_t, smid, 0)                                                         \
   X(uint32_t, warpid, 0)                                                       \
   X(uint32_t, iter, 0)
 #define PTR1(t) t *
@@ -31,6 +30,7 @@ struct Rec {
 #define X(t, nm, arr) PTR##arr(t) nm;
   FIELDS
 #undef X
+  uint32_t smid;
 };
 static const struct Col {
   const char *name;
