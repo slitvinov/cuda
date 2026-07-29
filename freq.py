@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 import sys
-
 import numpy as np
-
 import rec
-
 
 def gaps(base, zmin=3.0):
     a = rec.load(base)
