@@ -19,5 +19,5 @@ case $1 in
     ;;
 esac
 b64=$(printf 'cd /tmp && %s' "$*" | base64 | tr -d '\n')
-rsync *.h *.cu "$h:/tmp/" &&
+rsync *.h *.cu *.py "$h:/tmp/" &&
   ssh -n rc "srun --chdir=/tmp --overlap --jobid $j -w $n sh -lc \"ml cuda && \$(echo $b64 | base64 -d)\""

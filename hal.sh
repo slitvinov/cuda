@@ -20,5 +20,5 @@ case $# in
   0) echo "usage: $0 [-f files ...] | command ..." >&2; exit 2 ;;
 esac
 b64=$(printf '%s' "$*" | base64 | tr -d '\n')
-rsync *.h *.cu $h:/tmp/ &&
+rsync *.h *.cu *.py $h:/tmp/ &&
   ssh $h "cd /tmp && sh -lc \"\$(echo $b64 | base64 -d)\""

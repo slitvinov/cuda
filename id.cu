@@ -6,7 +6,7 @@ int main() {
   int count, device;
   cudaUUID_t u;
   if (cudaGetDeviceCount(&count) != cudaSuccess) {
-    fprintf(stderr, "cudaGetDeviceCount failed\n");
+    fprintf(stderr, "id: error: cudaGetDeviceCount failed\n");
     return 1;
   }
   for (device = 0; device < count; device++) {
