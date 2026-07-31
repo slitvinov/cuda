@@ -1,10 +1,6 @@
 #!/bin/sh
 
-if test -r host
-then read h < host
-else h=hg
-fi
-
+: ${h=hg}
 case $1 in
   -f)
     shift
