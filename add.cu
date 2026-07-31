@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <inttypes.h>
+#include <cuda/math>
 #include "reg.h"
-static __global__ void kernel() {
-  uint32_t smid;
-  uint64_t tid;
-  reg_smid(&smid);
-  tid = (uint64_t)blockDim.x * blockIdx.x + threadIdx.x;
-  printf("%u %" PRIu64 "%u %u\n", smid, tid, threadIdx.x, blockIdx.x);
+enum { threads = 32, n = 40 };
+
+static __global__ void kernel(float *a, float *b, float *c) {
+  uint64_t tid = (uint64_t)blockDim.x * blockIdx.x + threadIdx.x;
+  if (tid < n)
+    c[tid] = a[tid] + b[tid];
 }
 int main() {
   cudaError_t err;
