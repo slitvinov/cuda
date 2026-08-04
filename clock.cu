@@ -32,14 +32,21 @@ __global__ static void kernel(const float *input, float *output,
 }
 
 int main(int argc, char **argv) {
-  int num_block;
+  int num_block, i;
   float *dinput, *doutput, *input;
-  uint64_t *dtimer, *timer;
+  uint64_t *dtimer, *timer, avgElapsedClocks;
+  cudaDeviceProp prop;
+  cudaError_t err;
+
   if (argc != 2) {
     fprintf(stderr, "usage: %s num_block\n", argv[0]);
     exit(2);
   }
   num_block = atoi(argv[1]);
+  if ((err = cudaGetDeviceProperties(&prop, 0)) != cudaSuccess) {
+    fprintf(stderr, "clock: error: %s\n", cudaGetErrorString(err));
+    exit(2);
+  }
   if (cudaMallocHost(&timer, 2 * num_block * sizeof *timer) != cudaSuccess ||
       cudaMallocHost(&input, NUM_THREADS * 2 * sizeof *input) != cudaSuccess ||
       cudaMalloc(&dinput, NUM_THREADS * 2 * sizeof(float)) != cudaSuccess ||
@@ -48,7 +55,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "clock: error: cudaMalloc failed\n");
     exit(2);
   }
-  for (int i = 0; i < NUM_THREADS * 2; i++) {
+  for (i = 0; i < NUM_THREADS * 2; i++) {
     input[i] = i;
   }
   if (cudaMemcpy(dinput, input, NUM_THREADS * 2 * sizeof(float),
@@ -58,9 +65,9 @@ int main(int argc, char **argv) {
   }
   kernel<<<num_block, NUM_THREADS, sizeof(float) * 2 * NUM_THREADS>>>(
       dinput, doutput, dtimer);
-  if (cudaGetLastError() != cudaSuccess ||
-      cudaDeviceSynchronize() != cudaSuccess) {
-    fprintf(stderr, "clock: error: kernel launch failed\n");
+  if ((err = cudaGetLastError()) != cudaSuccess ||
+      (err = cudaDeviceSynchronize()) != cudaSuccess) {
+    fprintf(stderr, "clock: error: %s\n", cudaGetErrorString(err));
     exit(2);
   }
   if (cudaMemcpy(timer, dtimer, sizeof *timer * num_block * 2,
@@ -68,8 +75,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "clock: error: DtoH memcpy failed\n");
     exit(2);
   }
-  uint64_t avgElapsedClocks = 0;
-  for (int i = 0; i < num_block; i++) {
+  avgElapsedClocks = 0;
+  for (i = 0; i < num_block; i++) {
     avgElapsedClocks += timer[i + num_block] - timer[i];
   }
   if (cudaFreeHost(timer) != cudaSuccess ||
@@ -78,6 +85,5 @@ int main(int argc, char **argv) {
     fprintf(stderr, "clock: error: cudaFree failed\n");
     exit(2);
   }
-  printf("% 10d % 25llu\n", num_block,
-         (unsigned long long)(avgElapsedClocks / num_block));
+  printf("% 12d %.2f\n", num_block, (double)avgElapsedClocks / num_block);
 }
