@@ -1,0 +1,95 @@
+-- id --
+  name                                       NVIDIA A100 80GB PCIe
+  uuid                                       d724466a985915efe0450a78d66bedc8
+  pciBusID                                   23
+  pciDeviceID                                0
+  pciDomainID                                0
+  isMultiGpuBoard                            no
+  multiGpuBoardGroupID                       0
+  gpuPciDeviceID                             548737246
+  gpuPciSubsystemID                          355668190
+-- compute --
+  regsPerBlock                               65536
+  warpSize                                   32
+  maxThreadsPerBlock                         1024
+  maxThreadsDim                              1024 1024 64
+  maxGridSize                                2147483647 65535 65535
+  major                                      8
+  minor                                      0
+  multiProcessorCount                        108
+  maxThreadsPerMultiProcessor                2048
+  regsPerMultiprocessor                      65536
+  maxBlocksPerMultiProcessor                 32
+-- memory --
+  totalGlobalMem                             79.25 GiB
+  sharedMemPerBlock                          48.00 KiB
+  memPitch                                   2.00 GiB
+  totalConstMem                              64.00 KiB
+  canMapHostMemory                           yes
+  ECCEnabled                                 yes
+  memoryBusWidth                             5120 bits
+  l2CacheSize                                40.00 MiB
+  persistingL2CacheMaxSize                   25.00 MiB
+  globalL1CacheSupported                     yes
+  localL1CacheSupported                      yes
+  sharedMemPerMultiprocessor                 164.00 KiB
+  managedMemory                              yes
+  pageableMemoryAccess                       no
+  canUseHostPointerForRegisteredMem          yes
+  sharedMemPerBlockOptin                     163.00 KiB
+  pageableMemoryAccessUsesHostPageTables     no
+  directManagedMemAccessFromHost             no
+  reservedSharedMemPerBlock                  1.00 KiB
+  memoryPoolsSupported                       yes
+  memoryPoolSupportedHandleTypes             yes
+  deviceNumaConfig                           0
+  deviceNumaId                               -1
+  hostNumaId                                 0
+-- cap --
+  integrated                                 no
+  concurrentKernels                          yes
+  tccDriver                                  0
+  asyncEngineCount                           3
+  unifiedAddressing                          yes
+  streamPrioritiesSupported                  yes
+  hostNativeAtomicSupported                  no
+  concurrentManagedAccess                    yes
+  computePreemptionSupported                 yes
+  cooperativeLaunch                          yes
+  accessPolicyMaxWindowSize                  134213632
+  hostRegisterSupported                      yes
+  sparseCudaArraySupported                   yes
+  hostRegisterReadOnlySupported              yes
+  timelineSemaphoreInteropSupported          yes
+  gpuDirectRDMASupported                     yes
+  gpuDirectRDMAFlushWritesOptions            1
+  gpuDirectRDMAWritesOrdering                0
+  deferredMappingCudaArraySupported          yes
+  ipcEventSupported                          yes
+  clusterLaunch                              0
+  unifiedFunctionPointers                    no
+  mpsEnabled                                 no
+  hostNumaMultinodeIpcSupported              no
+-- texture --
+  textureAlignment                           512
+  texturePitchAlignment                      32.00 B
+  maxTexture1D                               131072
+  maxTexture1DMipmap                         32768
+  maxTexture2D                               131072 65536
+  maxTexture2DMipmap                         32768 32768
+  maxTexture2DLinear                         131072 65000 2097120
+  maxTexture2DGather                         32768 32768
+  maxTexture3D                               16384 16384 16384
+  maxTexture3DAlt                            8192 8192 32768
+  maxTextureCubemap                          32768
+  maxTexture1DLayered                        32768 2048
+  maxTexture2DLayered                        32768 32768 2048
+  maxTextureCubemapLayered                   32768 2046
+  maxSurface1D                               32768
+  maxSurface2D                               131072 65536
+  maxSurface3D                               16384 16384 16384
+  maxSurface1DLayered                        32768 2048
+  maxSurface2DLayered                        32768 32768 2048
+  maxSurfaceCubemap                          32768
+  maxSurfaceCubemapLayered                   32768 2046
+  surfaceAlignment                           512
