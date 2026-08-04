@@ -10,5 +10,7 @@ for j in `seq 0 10`; do for i in `seq 30`; do ./a.out $((1<<i)) > log.$j; done; 
 
 # References
 
-1. Huerta, R., Shoushtary, M. A., Cruz, J. L., & González, A. (2025). Analyzing Modern NVIDIA GPU cores. arXiv preprint arXiv:2503.20481.
+1. Volkov, V., & Demmel, J. W. (2008, November). Benchmarking GPUs to tune dense linear algebra. In SC'08: Proceedings of the 2008 ACM/IEEE conference on Supercomputing (pp. 1-11). IEEE.
+2. Huerta, R., Shoushtary, M. A., Cruz, J. L., & González, A. (2025). Analyzing Modern NVIDIA GPU cores. arXiv preprint arXiv:2503.20481.
+
 
