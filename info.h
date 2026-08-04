@@ -1,3 +1,32 @@
+#if CUDART_VERSION < 13000
+#define FIELDS_LEGACY \
+    X(clockRate,                         K_INT,   fmt_clk,    CAT_COMPUTE) \
+    X(deviceOverlap,                     K_INT,   0,          CAT_CAP) \
+    X(kernelExecTimeoutEnabled,          K_INT,   fmt_bool,   CAT_CAP) \
+    X(computeMode,                       K_INT,   0,          CAT_CAP) \
+    X(maxTexture1DLinear,                K_INT,   0,          CAT_TEXTURE) \
+    X(memoryClockRate,                   K_INT,   fmt_clk,    CAT_MEMORY) \
+    X(singleToDoublePrecisionPerfRatio,  K_INT,   0,          CAT_CAP) \
+    X(cooperativeMultiDeviceLaunch,      K_INT,   fmt_bool,   CAT_CAP) \
+    /* end legacy */
+#else
+#define FIELDS_LEGACY
+#endif
+
+#if CUDART_VERSION >= 13000
+#define FIELDS_V13 \
+    X(deviceNumaConfig,                  K_INT,   0,          CAT_MEMORY) \
+    X(deviceNumaId,                      K_INT,   0,          CAT_MEMORY) \
+    X(mpsEnabled,                        K_INT,   fmt_bool,   CAT_CAP) \
+    X(hostNumaId,                        K_INT,   0,          CAT_MEMORY) \
+    X(gpuPciDeviceID,                    K_UINT,  0,          CAT_ID) \
+    X(gpuPciSubsystemID,                 K_UINT,  0,          CAT_ID) \
+    X(hostNumaMultinodeIpcSupported,     K_INT,   fmt_bool,   CAT_CAP) \
+    /* end v13 */
+#else
+#define FIELDS_V13
+#endif
+
 #define FIELDS \
     X(name,                              K_STR,   0,          CAT_ID) \
     X(uuid,                              K_BYTES, 0,          CAT_ID) \
@@ -82,11 +111,6 @@
     X(ipcEventSupported,                 K_INT,   fmt_bool,   CAT_CAP) \
     X(clusterLaunch,                     K_INT,   0,          CAT_CAP) \
     X(unifiedFunctionPointers,           K_INT,   fmt_bool,   CAT_CAP) \
-    X(deviceNumaConfig,                  K_INT,   0,          CAT_MEMORY) \
-    X(deviceNumaId,                      K_INT,   0,          CAT_MEMORY) \
-    X(mpsEnabled,                        K_INT,   fmt_bool,   CAT_CAP) \
-    X(hostNumaId,                        K_INT,   0,          CAT_MEMORY) \
-    X(gpuPciDeviceID,                    K_UINT,  0,          CAT_ID) \
-    X(gpuPciSubsystemID,                 K_UINT,  0,          CAT_ID) \
-    X(hostNumaMultinodeIpcSupported,     K_INT,   fmt_bool,   CAT_CAP) \
+    FIELDS_LEGACY \
+    FIELDS_V13 \
     /* end */
