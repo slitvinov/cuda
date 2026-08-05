@@ -6,10 +6,10 @@
 
 __global__ static void nop(void) {}
 
-static int64_t ns(void) {
+static uint64_t ns(void) {
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC, &t);
-  return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
+  return t.tv_sec * 1000000000LL + t.tv_nsec;
 }
 
 static void jitter(void) {
@@ -25,8 +25,8 @@ struct Rec {
 };
 
 int main(int argc, char **argv) {
-  int n = 1000, i;
-  int64_t s, a;
+  int n = 1000000, i;
+  uint64_t t0, t1;
   struct Rec *rec;
   const char *base = argc > 1 ? argv[1] : "launch";
   char path[4096];
@@ -45,22 +45,19 @@ int main(int argc, char **argv) {
     fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
     exit(2);
   }
-  s = 0;
   for (i = 0; i < n; i++) {
     jitter();
-    a = ns();
+    t0 = ns();
     nop<<<1, 1>>>();
     err = cudaDeviceSynchronize();
-    rec[i].t0 = (uint64_t)a;
-    rec[i].lat = (uint64_t)(ns() - a);
-    s += (int64_t)rec[i].lat;
+    t1 = ns();
+    rec[i].t0 = t0;
+    rec[i].lat = t1 - t0;
     if (err != cudaSuccess || (err = cudaGetLastError()) != cudaSuccess) {
       fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
       exit(2);
     }
   }
-  printf("%.3f us/launch\n", (double)s / n);
-
   snprintf(path, sizeof path, "%s.raw", base);
   if (!(f = fopen(path, "wb")) ||
       fwrite(rec, sizeof *rec, (size_t)n, f) != (size_t)n || fclose(f)) {
