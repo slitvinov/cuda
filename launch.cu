@@ -19,23 +19,18 @@ static void jitter(void) {
   nanosleep(&t, NULL);
 }
 
-struct Rec {
-  uint64_t t0;
-  uint64_t lat;
-};
-
 int main(int argc, char **argv) {
-  int n = 1000000, i;
-  uint64_t t0, t1;
-  struct Rec *rec;
+  int n = 10000000, i;
+  uint64_t t0, t1, lat;
   const char *base = argc > 1 ? argv[1] : "launch";
   char path[4096];
-  FILE *f;
+  FILE *f, *m;
   uint16_t bo = 1;
   cudaError_t err;
 
-  if (!(rec = (struct Rec *)malloc((size_t)n * sizeof *rec))) {
-    fprintf(stderr, "launch: error: malloc failed\n");
+  snprintf(path, sizeof path, "%s.raw", base);
+  if (!(f = fopen(path, "wb"))) {
+    fprintf(stderr, "launch: error: cannot open %s\n", path);
     exit(2);
   }
   srand(0);
@@ -51,26 +46,29 @@ int main(int argc, char **argv) {
     nop<<<1, 1>>>();
     err = cudaDeviceSynchronize();
     t1 = ns();
-    rec[i].t0 = t0;
-    rec[i].lat = t1 - t0;
+    lat = t1 - t0;
+    if (fwrite(&t0, sizeof t0, 1, f) != 1 ||
+        fwrite(&lat, sizeof lat, 1, f) != 1) {
+      fprintf(stderr, "launch: error: cannot write %s\n", path);
+      exit(2);
+    }
     if (err != cudaSuccess || (err = cudaGetLastError()) != cudaSuccess) {
       fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
       exit(2);
     }
   }
-  snprintf(path, sizeof path, "%s.raw", base);
-  if (!(f = fopen(path, "wb")) ||
-      fwrite(rec, sizeof *rec, (size_t)n, f) != (size_t)n || fclose(f)) {
+  if (fclose(f)) {
     fprintf(stderr, "launch: error: cannot write %s\n", path);
     exit(2);
   }
   snprintf(path, sizeof path, "%s.meta", base);
-  if (!(f = fopen(path, "w"))) {
+  if (!(m = fopen(path, "w"))) {
+    fprintf(stderr, "launch: error: cannot open %s\n", path);
+    exit(2);
+  }
+  if (fprintf(m, "rows %d\nendian %s\nt0 u8\nlat u8\n", n,
+              *(char *)&bo ? "little" : "big") < 0 || fclose(m)) {
     fprintf(stderr, "launch: error: cannot write %s\n", path);
     exit(2);
   }
-  fprintf(f, "rows %d\nendian %s\nt0 u8\nlat u8\n", n,
-          *(char *)&bo ? "little" : "big");
-  fclose(f);
-  free(rec);
 }
