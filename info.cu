@@ -28,11 +28,6 @@ static void fmt_bytes(const struct field *f, const void *q) {
     else if (v >= (1ull<<10)) { v /= (1u<<10); u = "KiB"; }
     printf("%.2f %s", v, u);
 }
-static void fmt_clk(const struct field *f, const void *q) {
-    double khz = (double)uval(q, f->size);
-    if (khz >= 1e6) printf("%.2f GHz", khz / 1e6);
-    else            printf("%.0f MHz", khz / 1e3);
-}
 static void fmt_bool(const struct field *f, const void *q) { printf("%s", uval(q, f->size) ? "yes" : "no"); }
 static void fmt_bits(const struct field *f, const void *q) { printf("%llu bits", uval(q, f->size)); }
 
