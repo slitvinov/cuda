@@ -38,9 +38,9 @@ static int argint(const char *s) {
 }
 
 int main(int argc, char **argv) {
-  int n = 1000000, i;
+  int n = -1, i;
   uint64_t t0, t1, lat;
-  const char *base = "launch";
+  const char *base = 0;
   char path[4096];
   FILE *f, *m;
   uint16_t bo = 1;
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
   default:
     usage();
   } ARGEND;
-  if (n < 1)
+  if (n < 1 || !base)
     usage();
 
   snprintf(path, sizeof path, "%s.raw", base);
