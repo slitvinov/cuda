@@ -25,8 +25,8 @@ struct Rec {
 };
 
 int main(int argc, char **argv) {
-  int n = 1000000, i;
-  int64_t s;
+  int n = 1000, i;
+  int64_t s, a;
   struct Rec *rec;
   const char *base = argc > 1 ? argv[1] : "launch";
   char path[4096];
@@ -47,7 +47,6 @@ int main(int argc, char **argv) {
   }
   s = 0;
   for (i = 0; i < n; i++) {
-    int64_t a;
     jitter();
     a = ns();
     nop<<<1, 1>>>();
