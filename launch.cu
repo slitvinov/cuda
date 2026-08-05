@@ -20,7 +20,7 @@ static void jitter(void) {
 }
 
 int main(int argc, char **argv) {
-  int n = 10000000, i;
+  int n = 100000, i;
   uint64_t t0, t1, lat;
   const char *base = argc > 1 ? argv[1] : "launch";
   char path[4096];
@@ -34,6 +34,10 @@ int main(int argc, char **argv) {
     exit(2);
   }
   srand(0);
+  if ((err = cudaSetDeviceFlags(cudaDeviceScheduleSpin)) != cudaSuccess) {
+    fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
+    exit(2);
+  }
   nop<<<1, 1>>>();
   if ((err = cudaGetLastError()) != cudaSuccess ||
       (err = cudaDeviceSynchronize()) != cudaSuccess) {
