@@ -21,7 +21,8 @@ int main() {
   if ((err = cudaDeviceSynchronize()) != cudaSuccess)
     goto fail;
   for (i = 0; i < n; i++)
-    printf("%.1f ", c[i]);
+    printf("%g ", c[i]);
+  printf("\n");
   return 0;
  fail:
     fprintf(stderr, "smoke: error: %s\n", cudaGetErrorString(err));

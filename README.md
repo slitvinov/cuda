@@ -1,7 +1,8 @@
 # cuda
 
 ```
-mcu nvcc info.cu -O3 -gencode arch=compute_100a,code=sm_100a -cudart shared -Xlinker -s -- a.out -- ./a.out
+mcu nvcc info.cu -gencode arch=compute_100a,code=sm_100a -cudart shared -Xlinker -s -- a.out -- ./a.out
+mcu nvcc add.cu -gencode arch=compute_100a,code=sm_100a -cudart shared -Xlinker -s -- a.out -- ./a.out
 ```
 
 
