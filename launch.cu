@@ -1,8 +1,11 @@
 #include <cuda_runtime.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#include "arg.h"
 
 __global__ static void nop(void) {}
 
@@ -19,14 +22,42 @@ static void jitter(void) {
   nanosleep(&t, NULL);
 }
 
+char *argv0;
+static void usage(void) {
+  fprintf(stderr, "usage: %s [-n measurements] [-o base]\n", argv0);
+  exit(2);
+}
+static int argint(const char *s) {
+  char *e;
+  long v;
+  errno = 0;
+  v = strtol(s, &e, 0);
+  if (*s == '\0' || *e != '\0' || errno != 0)
+    usage();
+  return (int)v;
+}
+
 int main(int argc, char **argv) {
   int n = 1000000, i;
   uint64_t t0, t1, lat;
-  const char *base = argc > 1 ? argv[1] : "launch";
+  const char *base = "launch";
   char path[4096];
   FILE *f, *m;
   uint16_t bo = 1;
   cudaError_t err;
+
+  ARGBEGIN {
+  case 'n':
+    n = argint(EARGF(usage()));
+    break;
+  case 'o':
+    base = EARGF(usage());
+    break;
+  default:
+    usage();
+  } ARGEND;
+  if (n < 1)
+    usage();
 
   snprintf(path, sizeof path, "%s.raw", base);
   if (!(f = fopen(path, "wb"))) {
