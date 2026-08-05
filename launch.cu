@@ -51,13 +51,13 @@ int main(int argc, char **argv) {
     err = cudaDeviceSynchronize();
     t1 = ns();
     lat = t1 - t0;
+    if (err != cudaSuccess || (err = cudaGetLastError()) != cudaSuccess) {
+      fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
+      exit(2);
+    }
     if (fwrite(&t0, sizeof t0, 1, f) != 1 ||
         fwrite(&lat, sizeof lat, 1, f) != 1) {
       fprintf(stderr, "launch: error: cannot write %s\n", path);
-      exit(2);
-    }
-    if (err != cudaSuccess || (err = cudaGetLastError()) != cudaSuccess) {
-      fprintf(stderr, "launch: error: %s\n", cudaGetErrorString(err));
       exit(2);
     }
   }
