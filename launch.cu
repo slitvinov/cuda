@@ -20,7 +20,7 @@ static void jitter(void) {
 }
 
 int main(int argc, char **argv) {
-  int n = 100000, i;
+  int n = 1000000, i;
   uint64_t t0, t1, lat;
   const char *base = argc > 1 ? argv[1] : "launch";
   char path[4096];
