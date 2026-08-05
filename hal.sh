@@ -17,4 +17,4 @@ case $# in
 esac
 b64=$(printf '%s' "$*" | base64 | tr -d '\n')
 rsync *.h *.cu *.py $h:/tmp/ &&
-  ssh $h "cd /tmp && timeout -k 5 120 sh -lc \"\$(echo $b64 | base64 -d)\""
+  ssh $h "cd /tmp && sh -lc \"\$(echo $b64 | base64 -d)\""
