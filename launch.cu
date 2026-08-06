@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
 #include "arg.h"
 
 __global__ static void nop(void) {}
@@ -55,7 +54,8 @@ int main(int argc, char **argv) {
     break;
   default:
     usage();
-  } ARGEND;
+  }
+  ARGEND;
   if (n < 1 || !base)
     usage();
 
@@ -102,7 +102,8 @@ int main(int argc, char **argv) {
     exit(2);
   }
   if (fprintf(m, "rows %d\nendian %s\nt0 u8\nlat u8\n", n,
-              *(char *)&bo ? "little" : "big") < 0 || fclose(m)) {
+              *(char *)&bo ? "little" : "big") < 0 ||
+      fclose(m)) {
     fprintf(stderr, "launch: error: cannot write %s\n", path);
     exit(2);
   }
