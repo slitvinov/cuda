@@ -7,9 +7,11 @@ import rec
 def main():
     base = sys.argv[1] if len(sys.argv) > 1 else "launch"
     a = rec.load(base)
-    lt = a["lat"]
-    print(lt.dtype)
-    np.bincount(lt.astype(np.int64))
+    lt = a["lat"].astype(np.int64)
+    v, c = np.unique(lt, return_counts=True)
+    cdf = np.cumsum(c)
+    for x, p in zip(v, cdf):
+        print(x, p, p / cdf[-1])
 
 
 if __name__ == "__main__":
