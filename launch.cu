@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
     exit(2);
   }
   for (i = 0; i < n; i++) {
-    jitter();
+    //    jitter();
     t0 = ns();
     nop<<<1, 1>>>();
     err = cudaDeviceSynchronize();
